@@ -12,7 +12,8 @@ Current version: **0.3**.
 
 ## Screenshots
 
-Coming soon.
+<img width="1278" height="717" alt="image" src="https://github.com/user-attachments/assets/5327ea73-32f8-416e-9a10-b74e8002c2ed" />
+
 
 ## What's new in 0.3
 
