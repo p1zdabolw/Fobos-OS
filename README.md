@@ -10,7 +10,9 @@ real internet.
 
 ## Screenshots
 
-Coming soon.
+<img width="634" height="475" alt="Снимок экрана 2026-09-23 164922" src="https://github.com/user-attachments/assets/be8fa5ef-718d-4ce4-9508-c9f0330ec824" />
+<img width="637" height="475" alt="Снимок экрана 2026-09-23 164635" src="https://github.com/user-attachments/assets/644071f4-977e-492a-8ee1-a3b9bfd20dbb" />
+
 
 ## Features
 
