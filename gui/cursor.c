@@ -1,0 +1,28 @@
+#include "cursor.h"
+#include "../kernel/fb.h"
+
+static const u8 g_cursor[CURSOR_H] = {
+    0x80, 0xC0, 0xE0, 0xF0, 0xF8, 0xFC, 0xFE, 0xFF,
+    0xF8, 0xD8, 0x8C, 0x0C, 0x06, 0x06, 0x03, 0x03,
+    0x00, 0x00, 0x00
+};
+static const u8 g_cursor_mask[CURSOR_H] = {
+    0xC0, 0xE0, 0xF0, 0xF8, 0xFC, 0xFE, 0xFF, 0xFF,
+    0xFC, 0xFC, 0xDE, 0x1E, 0x0F, 0x0F, 0x07, 0x07,
+    0x00, 0x00, 0x00
+};
+
+void cursor_init(void) { }
+
+void cursor_draw(int x, int y) {
+    for (int row = 0; row < CURSOR_H; row++) {
+        u8 bits  = g_cursor[row];
+        u8 mask  = g_cursor_mask[row];
+        for (int col = 0; col < 8; col++) {
+            if (mask & (0x80 >> col)) {
+                u32 c = (bits & (0x80 >> col)) ? 0x000000 : 0xFFFFFF;
+                fb_put_pixel(x + col, y + row, c);
+            }
+        }
+    }
+}
