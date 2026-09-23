@@ -15,23 +15,28 @@
 #include "syscall.h"
 #include "net.h"
 #include "http.h"
+#include "speaker.h"
 #include "../lib/printf.h"
 #include "../lib/string.h"
+#include "../lib/i18n.h"
 #include "../gui/compositor.h"
 #include "../gui/window.h"
 #include "../gui/cursor.h"
 #include "../gui/font.h"
 #include "../gui/desktop.h"
+#include "../gui/wallpaper.h"
+#include "../gui/settings.h"
 #include "../apps/terminal.h"
 #include "../apps/files.h"
 #include "../apps/notepad.h"
 #include "../apps/browser.h"
+#include "../apps/photos.h"
+#include "../apps/media.h"
 
 static const char SCRIPT_HELLO[] =
     "@echo off\n"
     "echo Hello from FOS batch!\n"
     "echo This file is a script, not a binary.\n"
-    "echo The kernel interpreted it line by line.\n"
     "pause\n"
     "exit\n";
 
@@ -49,10 +54,8 @@ static const char SCRIPT_SYSINFO[] =
 static const char SCRIPT_DEMO[] =
     "@echo off\n"
     "echo FOS Wine-style runtime\n"
-    "echo This .exe is a script in disguise.\n"
     "set WHO=World\n"
     "echo Hello, %WHO%!\n"
-    "echo The runtime expanded %WHO% to 'World'.\n"
     "pause\n"
     "exit\n";
 
@@ -60,9 +63,8 @@ static const char SCRIPT_VARS[] =
     "@echo off\n"
     "echo Variable substitution demo\n"
     "set NAME=FOS\n"
-    "set VERSION=0.2\n"
+    "set VERSION=0.3\n"
     "echo Welcome to %NAME% v%VERSION%\n"
-    "echo Variables are expanded at run time.\n"
     "pause\n"
     "exit\n";
 
@@ -70,11 +72,7 @@ static const char SCRIPT_NET[] =
     "@echo off\n"
     "echo === Network diagnostic ===\n"
     "ifconfig\n"
-    "echo\n"
-    "echo Resolving example.com...\n"
     "nslookup example.com\n"
-    "echo\n"
-    "echo Fetching http://example.com/ ...\n"
     "wget http://example.com/\n"
     "pause\n"
     "exit\n";
@@ -82,27 +80,12 @@ static const char SCRIPT_NET[] =
 static const char HOWTO[] =
     "FOS batch scripting howto\n"
     "\n"
-    "Scripts are plain text files with .bat, .cmd or .exe\n"
-    "extensions. Double-click one on the desktop, or from the\n"
-    "terminal run:\n"
-    "  run FILE\n"
-    "  bash FILE\n"
+    "Scripts are .bat, .cmd or .exe files.\n"
+    "Directives: echo, set, goto, pause, exit.\n"
+    "Variables are written %NAME%.\n"
     "\n"
-    "Directives:\n"
-    "  @echo off        suppress command echo\n"
-    "  @echo on         restore command echo\n"
-    "  echo TEXT        print TEXT\n"
-    "  set NAME=VALUE   define a variable\n"
-    "  %NAME%           expand a variable inline\n"
-    "  :label           define a label\n"
-    "  goto label       jump to a label\n"
-    "  pause            print wait message, delay 1.5s\n"
-    "  rem TEXT         comment\n"
-    "  :: TEXT          comment\n"
-    "  exit             end the script\n"
-    "\n"
-    "Any other line is dispatched to the shell, so scripts can\n"
-    "call ls, cat, cp, mv, grep, echo and so on.\n";
+    "FOS keyboard layouts:\n"
+    "  Press Shift + Alt to toggle EN / RU.\n";
 
 static const char URL_HOME[]   = "about:home";
 static const char URL_GOOGLE[] = "google.com";
@@ -156,6 +139,7 @@ void kmain(u64 mb2_info) {
     fs_init();
     sched_init();
     syscall_init();
+    speaker_init();
 
     net_init();
     cookie_jar_init();
@@ -167,12 +151,14 @@ void kmain(u64 mb2_info) {
     cursor_init();
     window_init();
     desktop_init();
+    wallpaper_init();
+    settings_init();
+    i18n_init();
 
     splash();
 
     fs_create("readme.txt",  "Welcome to FOS\n", 15);
     fs_create("howto.txt",   HOWTO, sizeof(HOWTO) - 1);
-
     fs_create("hello.bat",   SCRIPT_HELLO,   sizeof(SCRIPT_HELLO) - 1);
     fs_create("sysinfo.cmd", SCRIPT_SYSINFO, sizeof(SCRIPT_SYSINFO) - 1);
     fs_create("demo.exe",    SCRIPT_DEMO,    sizeof(SCRIPT_DEMO) - 1);
@@ -198,8 +184,9 @@ void kmain(u64 mb2_info) {
 
     apps_launch_terminal();
 
-    kprintf("FOS ready. Free: %u KB, desktop icons: %u\n",
-            (u32)(pmm_free_bytes() / 1024), (u32)desktop_icon_count());
+    kprintf("FOS ready. Free: %u KB, desktop icons: %u, layout: %s\n",
+            (u32)(pmm_free_bytes() / 1024), (u32)desktop_icon_count(),
+            keyboard_layout_name());
 
     __asm__ volatile("sti");
 
@@ -220,6 +207,7 @@ void kmain(u64 mb2_info) {
         }
 
         net_poll();
+        media_tick();
 
         while (keyboard_has_char()) {
             char c = keyboard_getchar();

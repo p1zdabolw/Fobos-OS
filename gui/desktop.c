@@ -60,8 +60,7 @@ static int detect_type(const char *name) {
 }
 
 static void draw_icon_txt(int x, int y) {
-    int px = x + 10;
-    int py = y + 2;
+    int px = x + 10, py = y + 2;
     fb_fill_rect(px, py, 28, 40, 0xFFFFFF);
     fb_fill_rect(px, py, 28, 1, 0x404850);
     fb_fill_rect(px, py + 39, 28, 1, 0x404850);
@@ -70,14 +69,11 @@ static void draw_icon_txt(int x, int y) {
     fb_fill_rect(px + 20, py, 8, 8, 0xB0B8C0);
     fb_fill_rect(px + 20, py, 8, 1, 0x606870);
     fb_fill_rect(px + 20, py, 1, 8, 0x606870);
-    for (int i = 0; i < 7; i++) {
-        fb_fill_rect(px + 3, py + 13 + i * 4, 22, 1, 0x303840);
-    }
+    for (int i = 0; i < 7; i++) fb_fill_rect(px + 3, py + 13 + i * 4, 22, 1, 0x303840);
 }
 
 static void draw_icon_exe(int x, int y) {
-    int px = x + 4;
-    int py = y + 4;
+    int px = x + 4, py = y + 4;
     fb_fill_rect(px, py, 40, 40, 0xFFFFFF);
     fb_fill_rect(px, py, 40, 8, 0x202060);
     fb_fill_rect(px + 34, py + 2, 4, 4, 0xC04040);
@@ -90,8 +86,7 @@ static void draw_icon_exe(int x, int y) {
 }
 
 static void draw_icon_cmd(int x, int y) {
-    int px = x + 4;
-    int py = y + 4;
+    int px = x + 4, py = y + 4;
     fb_fill_rect(px, py, 40, 40, 0x080810);
     fb_fill_rect(px, py, 40, 1, 0x000000);
     fb_fill_rect(px, py + 39, 40, 1, 0x000000);
@@ -105,8 +100,7 @@ static void draw_icon_cmd(int x, int y) {
 }
 
 static void draw_icon_unknown(int x, int y) {
-    int px = x + 8;
-    int py = y + 4;
+    int px = x + 8, py = y + 4;
     fb_fill_rect(px, py, 32, 40, 0xC0C8D0);
     fb_fill_rect(px, py, 32, 1, 0x505860);
     fb_fill_rect(px, py + 39, 32, 1, 0x505860);
@@ -119,11 +113,8 @@ static void draw_icon_unknown(int x, int y) {
 }
 
 static void draw_icon_url(int x, int y) {
-    int bx = x + 4;
-    int by = y + 4;
-    int cx = bx + 20;
-    int cy = by + 22;
-
+    int bx = x + 4, by = y + 4;
+    int cx = bx + 20, cy = by + 22;
     fb_fill_rect(bx, by, 40, 40, 0xFFFFFF);
     fb_fill_rect(bx, by, 40, 1, 0x202020);
     fb_fill_rect(bx, by + 39, 40, 1, 0x202020);
@@ -139,7 +130,6 @@ static void draw_icon_url(int x, int y) {
             }
         }
     }
-
     for (int dy = -10; dy <= 10; dy++) {
         for (int dx = -11; dx <= 11; dx++) {
             int outer = dx * dx * 100 / (11 * 11) + dy * dy * 100 / (10 * 10);
@@ -160,9 +150,7 @@ static void draw_label(int cx, int y, const char *label, int selected) {
     usize n = strlen(label);
     if (n > 8) {
         memcpy(buf, label, 6);
-        buf[6] = '.';
-        buf[7] = '.';
-        buf[8] = 0;
+        buf[6] = '.'; buf[7] = '.'; buf[8] = 0;
     } else {
         memcpy(buf, label, n);
         buf[n] = 0;
@@ -176,9 +164,7 @@ static void draw_label(int cx, int y, const char *label, int selected) {
 }
 
 static void draw_icon(struct desktop_icon *ic) {
-    if (ic->selected) {
-        fb_fill_rect(ic->x, ic->y, ICON_W, ICON_H, 0x204060);
-    }
+    if (ic->selected) fb_fill_rect(ic->x, ic->y, ICON_W, ICON_H, 0x204060);
     switch (ic->type) {
         case ICON_TYPE_TXT: draw_icon_txt(ic->x, ic->y); break;
         case ICON_TYPE_EXE: draw_icon_exe(ic->x, ic->y); break;
@@ -261,8 +247,19 @@ static int point_in_window(int mx, int my) {
     return 0;
 }
 
-void desktop_sync_input(int left) {
-    g_prev_left = left;
+void desktop_sync_input(int left) { g_prev_left = left; }
+
+void desktop_reclamp(void) {
+    int w = (int)fb_get()->width;
+    int tb = (int)fb_get()->height - compositor_taskbar_h();
+    for (int i = 0; i < g_count; i++) {
+        struct desktop_icon *ic = &g_icons[i];
+        if (!ic->visible) continue;
+        if (ic->x + ICON_CELL_W > w) ic->x = w - ICON_CELL_W;
+        if (ic->y + ICON_CELL_H > tb) ic->y = tb - ICON_CELL_H;
+        if (ic->x < 0) ic->x = 0;
+        if (ic->y < 0) ic->y = 0;
+    }
 }
 
 static void launch_url_file(const char *filename) {

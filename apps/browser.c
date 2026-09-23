@@ -10,6 +10,7 @@
 #include "../lib/string.h"
 #include "../lib/mem.h"
 #include "../lib/printf.h"
+#include "../lib/i18n.h"
 
 #define BR_WIN_W 760
 #define BR_WIN_H 520
@@ -273,7 +274,7 @@ static void add_line(struct browser_state *s, const char *text, const char *link
 static void blank(struct browser_state *s) { add_line(s, "", NULL, 0); }
 
 static void render_home(struct browser_state *s) {
-    add_line(s, "          FOS Internet Explorer 0.2", NULL, 1);
+    add_line(s, "          FOS Internet Explorer 0.3", NULL, 1);
     blank(s);
     add_line(s, " Real network stack: RTL8139, ARP, IPv4, UDP,", NULL, 0);
     add_line(s, " DNS, TCP, HTTP/1.1, chunked transfer, cookies,", NULL, 0);
@@ -452,7 +453,7 @@ static void render_real_page(struct browser_state *s, const char *start_url) {
     strncpy(url_buf, start_url, sizeof(url_buf) - 1);
     url_buf[sizeof(url_buf) - 1] = 0;
 
-    set_status(s, "Fetching...");
+    set_status(s, tr(STR_BR_FETCHING));
 
     struct http_response resp;
     memset(&resp, 0, sizeof(resp));
@@ -618,18 +619,40 @@ static void br_draw(struct window *win) {
 
     fb_fill_rect(bx, by, w, BR_MENU_H, 0xE8E8E8);
     fb_fill_rect(bx, by + BR_MENU_H - 1, w, 1, 0xA0A0A0);
-    font_draw_string(bx + 6, by + 2, "File   Edit   View   History   Help   (HTTPS: no)",
-                     0x202020, 0xE8E8E8);
+    {
+        int mx = bx + 6;
+        mx += font_text_width(tr(STR_BR_FILE)) + 18;
+        mx += font_text_width(tr(STR_BR_EDIT)) + 18;
+        mx += font_text_width(tr(STR_BR_VIEW)) + 18;
+        mx += font_text_width(tr(STR_BR_HISTORY)) + 18;
+        mx += font_text_width(tr(STR_BR_HELP)) + 18;
+        font_draw_string(bx + 6, by + 2, tr(STR_BR_FILE), 0x202020, 0xE8E8E8);
+        font_draw_string(bx + 6 + font_text_width(tr(STR_BR_FILE)) + 18,
+                         by + 2, tr(STR_BR_EDIT), 0x202020, 0xE8E8E8);
+        font_draw_string(bx + 6 + font_text_width(tr(STR_BR_FILE)) + 18 +
+                            font_text_width(tr(STR_BR_EDIT)) + 18,
+                         by + 2, tr(STR_BR_VIEW), 0x202020, 0xE8E8E8);
+        font_draw_string(bx + 6 + font_text_width(tr(STR_BR_FILE)) + 18 +
+                            font_text_width(tr(STR_BR_EDIT)) + 18 +
+                            font_text_width(tr(STR_BR_VIEW)) + 18,
+                         by + 2, tr(STR_BR_HISTORY), 0x202020, 0xE8E8E8);
+        font_draw_string(bx + 6 + font_text_width(tr(STR_BR_FILE)) + 18 +
+                            font_text_width(tr(STR_BR_EDIT)) + 18 +
+                            font_text_width(tr(STR_BR_VIEW)) + 18 +
+                            font_text_width(tr(STR_BR_HISTORY)) + 18,
+                         by + 2, tr(STR_BR_HELP), 0x202020, 0xE8E8E8);
+        (void)mx;
+    }
 
     int ny = by + BR_MENU_H;
     fb_fill_rect(bx, ny, w, BR_NAV_H, 0xD0D8E0);
     fb_fill_rect(bx, ny + BR_NAV_H - 1, w, 1, 0x808890);
 
-    draw_button(bx + BTN_BACK, ny + 2, BTN_W, BTN_H, "<");
-    draw_button(bx + BTN_FWD,  ny + 2, BTN_W, BTN_H, ">");
-    draw_button(bx + BTN_REF,  ny + 2, BTN_W, BTN_H, "R");
-    draw_button(bx + BTN_HOME, ny + 2, BTN_W, BTN_H, "H");
-    draw_button(bx + BTN_GO,   ny + 2, BTN_W, BTN_H, "->");
+    draw_button(bx + BTN_BACK, ny + 2, BTN_W, BTN_H, tr(STR_BR_BACK));
+    draw_button(bx + BTN_FWD,  ny + 2, BTN_W, BTN_H, tr(STR_BR_FWD));
+    draw_button(bx + BTN_REF,  ny + 2, BTN_W, BTN_H, tr(STR_BR_REF));
+    draw_button(bx + BTN_HOME, ny + 2, BTN_W, BTN_H, tr(STR_BR_HOME));
+    draw_button(bx + BTN_GO,   ny + 2, BTN_W, BTN_H, tr(STR_BR_GO));
 
     int ax = bx + ADDR_X;
     int ay = ny + 2;
@@ -666,10 +689,10 @@ static void br_draw(struct window *win) {
     fb_fill_rect(bx, sy, w, BR_STATUS_H, 0xE8E8E8);
     fb_fill_rect(bx, sy, w, 1, 0xA0A0A0);
     const char *msg = s->status;
-    if (timer_ticks() > s->status_until || msg[0] == 0) msg = "Done";
+    if (timer_ticks() > s->status_until || msg[0] == 0) msg = tr(STR_BR_DONE);
     font_draw_string(bx + 4, sy + 2, msg, 0x202020, 0xE8E8E8);
     char cnt[48];
-    snprintf(cnt, sizeof(cnt), "Cookies: %d", cookie_jar_count());
+    snprintf(cnt, sizeof(cnt), tr(STR_BR_COOKIES), cookie_jar_count());
     int cw = font_text_width(cnt);
     font_draw_string(bx + w - cw - 8, sy + 2, cnt, 0x404040, 0xE8E8E8);
 }
@@ -764,9 +787,9 @@ static void br_open_with(struct browser_state *s, int slot, const char *url) {
     s->page_buf = g_page_buf[slot];
     s->hist_pos = -1;
     s->hist_count = 0;
-    strncpy(s->status, "Done", sizeof(s->status) - 1);
+    strncpy(s->status, tr(STR_BR_DONE), sizeof(s->status) - 1);
     br_push(s, url);
-    int id = window_create(40, 25, BR_WIN_W, BR_WIN_H, "Internet Explorer");
+    int id = window_create(40, 25, BR_WIN_W, BR_WIN_H, tr(STR_APP_BROWSER));
     if (id < 0) return;
     struct window *win = window_get(id);
     win->user = s;

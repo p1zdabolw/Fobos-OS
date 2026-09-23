@@ -1,9 +1,23 @@
 #include "fb.h"
-#include "heap.h"
+#include "pmm.h"
 #include "../lib/printf.h"
 #include "../lib/mem.h"
 
+#define VBE_DISPI_IOPORT_INDEX 0x01CE
+#define VBE_DISPI_IOPORT_DATA  0x01CF
+#define VBE_DISPI_INDEX_ID     0
+#define VBE_DISPI_INDEX_XRES   1
+#define VBE_DISPI_INDEX_YRES   2
+#define VBE_DISPI_INDEX_BPP    3
+#define VBE_DISPI_INDEX_ENABLE 4
+
+#define VBE_DISPI_DISABLED     0x00
+#define VBE_DISPI_ENABLED      0x01
+#define VBE_DISPI_LFB_ENABLED  0x40
+
 static struct fb_info g_fb;
+static phys_t g_back_phys = 0;
+static usize  g_back_frames = 0;
 
 struct mb2_tag { u32 type; u32 size; };
 struct mb2_fb {
@@ -11,18 +25,67 @@ struct mb2_fb {
     u8 bpp; u8 fb_type; u16 reserved;
 };
 
+static inline void outw_v(u16 p, u16 v) {
+    __asm__ volatile("outw %0, %1" :: "a"(v), "Nd"(p));
+}
+static inline u16 inw_v(u16 p) {
+    u16 v;
+    __asm__ volatile("inw %1, %0" : "=a"(v) : "Nd"(p));
+    return v;
+}
+
+static void vbe_write(u16 idx, u16 val) {
+    outw_v(VBE_DISPI_IOPORT_INDEX, idx);
+    outw_v(VBE_DISPI_IOPORT_DATA, val);
+}
+static u16 vbe_read(u16 idx) {
+    outw_v(VBE_DISPI_IOPORT_INDEX, idx);
+    return inw_v(VBE_DISPI_IOPORT_DATA);
+}
+
+int fb_vbe_available(void) {
+    u16 id = vbe_read(VBE_DISPI_INDEX_ID);
+    return (id >= 0xB0C0 && id <= 0xB0C5);
+}
+
+static int vbe_set_mode(int w, int h, int bpp) {
+    if (!fb_vbe_available()) return -1;
+    if (w <= 0 || h <= 0) return -1;
+    if (bpp != 32) return -1;
+
+    vbe_write(VBE_DISPI_INDEX_ENABLE, VBE_DISPI_DISABLED);
+    vbe_write(VBE_DISPI_INDEX_XRES, (u16)w);
+    vbe_write(VBE_DISPI_INDEX_YRES, (u16)h);
+    vbe_write(VBE_DISPI_INDEX_BPP, (u16)bpp);
+    vbe_write(VBE_DISPI_INDEX_ENABLE, VBE_DISPI_ENABLED | VBE_DISPI_LFB_ENABLED);
+
+    u16 got_x = vbe_read(VBE_DISPI_INDEX_XRES);
+    u16 got_y = vbe_read(VBE_DISPI_INDEX_YRES);
+    if (got_x != (u16)w || got_y != (u16)h) return -1;
+    return 0;
+}
+
+static void alloc_back_buffer(void) {
+    usize needed = (usize)g_fb.width * (usize)g_fb.height * 4;
+    if (needed == 0) return;
+    g_back_frames = (needed + 4095) / 4096;
+    g_back_phys = pmm_alloc_frames(g_back_frames);
+    if (!g_back_phys) {
+        g_fb.back = (u32*)0;
+        g_fb.back_pitch = 0;
+        return;
+    }
+    g_fb.back = (u32*)g_back_phys;
+    g_fb.back_pitch = (usize)g_fb.width * 4;
+    memset(g_fb.back, 0, needed);
+}
+
 void fb_init(u64 mb2_info) {
     u8 *p = (u8*)mb2_info;
     u32 total = *(u32*)p;
-    kprintf("MB2 info at %p total=%u\n", (void*)mb2_info, (u32)total);
-
     struct mb2_tag *tag = (struct mb2_tag*)(p + 8);
     while ((u8*)tag + 8 <= p + total) {
-        if (tag->size < 8) {
-            kprintf("MB2 tag malformed type=%u size=%u\n", (u32)tag->type, (u32)tag->size);
-            break;
-        }
-        kprintf("MB2 tag type=%u size=%u\n", (u32)tag->type, (u32)tag->size);
+        if (tag->size < 8) break;
         if (tag->type == 0) break;
         if (tag->type == 8) {
             struct mb2_fb *f = (struct mb2_fb*)tag;
@@ -36,22 +99,44 @@ void fb_init(u64 mb2_info) {
     }
 
     if (!g_fb.addr) {
-        kprintf("FB: no type-8 tag found in MB2 info\n");
+        kprintf("FB: no framebuffer tag present\n");
         return;
     }
-    kprintf("FB: %ux%u %ubpp pitch=%u addr=%p\n",
-            g_fb.width, g_fb.height, (u32)g_fb.bpp, g_fb.pitch, (void*)g_fb.addr);
+    kprintf("FB: %ux%u %ubpp pitch=%u addr=%p (vbe=%s)\n",
+            g_fb.width, g_fb.height, (u32)g_fb.bpp, g_fb.pitch,
+            (void*)g_fb.addr, fb_vbe_available() ? "yes" : "no");
 }
 
 void fb_back_init(void) {
     if (!g_fb.addr || g_fb.back) return;
-    g_fb.back_pitch = (usize)g_fb.width * 4;
-    g_fb.back = (u32*)kmalloc(g_fb.back_pitch * g_fb.height);
-    if (!g_fb.back) {
-        kprintf("FB: back buffer allocation failed\n");
-        return;
+    alloc_back_buffer();
+}
+
+int fb_resize(int w, int h) {
+    if (!g_fb.addr) return -1;
+    if (!fb_vbe_available()) return -1;
+
+    if (vbe_set_mode(w, h, 32) != 0) return -1;
+
+    if (g_back_phys && g_back_frames) {
+        pmm_free_frames(g_back_phys, g_back_frames);
+        g_back_phys = 0;
+        g_back_frames = 0;
+        g_fb.back = (u32*)0;
     }
-    memset(g_fb.back, 0, g_fb.back_pitch * g_fb.height);
+
+    g_fb.width  = (u32)w;
+    g_fb.height = (u32)h;
+    g_fb.bpp    = 32;
+    g_fb.pitch  = (u32)w * 4;
+
+    alloc_back_buffer();
+    if (!g_fb.back) return -1;
+    return 0;
+}
+
+u32 fb_bytes_used(void) {
+    return (u32)g_back_frames * 4096;
 }
 
 struct fb_info *fb_get(void) { return &g_fb; }

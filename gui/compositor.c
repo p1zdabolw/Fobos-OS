@@ -2,20 +2,23 @@
 #include "window.h"
 #include "cursor.h"
 #include "desktop.h"
+#include "wallpaper.h"
+#include "settings.h"
 #include "../kernel/fb.h"
 #include "../kernel/mouse.h"
 #include "../kernel/timer.h"
+#include "../kernel/keyboard.h"
+#include "../lib/i18n.h"
 #include "font.h"
 #include "../lib/printf.h"
 
 #define TASKBAR_H 28
 #define START_W 80
-#define START_ITEMS 5
-#define CTX_ITEMS 4
+#define START_ITEMS 9
+#define CTX_ITEMS 8
 #define ITEM_H 24
 #define MENU_PAD 4
 
-static u32 g_desktop_color = 0x1B3A4B;
 static int g_menu_open;
 static int g_ctx_open;
 static int g_ctx_x;
@@ -28,36 +31,36 @@ extern void apps_launch_files(void);
 extern void apps_launch_notepad(void);
 extern void apps_launch_about(void);
 extern void apps_launch_browser(void);
+extern void apps_launch_photos(void);
+extern void apps_launch_media(void);
 
-static const char *g_start_items[START_ITEMS] = {
-    "Terminal",
-    "Browser",
-    "Notepad",
-    "Files",
-    "About FOS",
+static const int g_start_ids[START_ITEMS] = {
+    STR_APP_TERMINAL,
+    STR_APP_BROWSER,
+    STR_APP_NOTEPAD,
+    STR_APP_FILES,
+    STR_APP_PHOTOS,
+    STR_APP_MEDIA,
+    STR_APP_WALLPAPER,
+    STR_APP_SETTINGS,
+    STR_APP_ABOUT,
 };
 
-static const char *g_ctx_items[CTX_ITEMS] = {
-    "New Terminal",
-    "New Browser",
-    "New Notepad",
-    "New Files",
+static const int g_ctx_ids[CTX_ITEMS] = {
+    STR_CTX_NEW_TERMINAL,
+    STR_CTX_NEW_BROWSER,
+    STR_CTX_NEW_NOTEPAD,
+    STR_CTX_NEW_FILES,
+    STR_CTX_PHOTOS,
+    STR_CTX_MEDIA,
+    STR_CTX_WALLPAPER,
+    STR_CTX_SETTINGS,
 };
 
 static int start_menu_h(void) { return 20 + START_ITEMS * ITEM_H + MENU_PAD; }
 static int start_menu_y(void) { return (int)fb_get()->height - TASKBAR_H - start_menu_h(); }
-static int ctx_menu_w(void)   { return 170; }
+static int ctx_menu_w(void)   { return 200; }
 static int ctx_menu_h(void)   { return MENU_PAD * 2 + CTX_ITEMS * ITEM_H; }
-
-static void draw_desktop(void) {
-    struct fb_info *fb = fb_get();
-    for (u32 y = 0; y < fb->height; y++) {
-        for (u32 x = 0; x < fb->width; x++) {
-            u32 shade = ((x ^ y) & 0x40) ? 0x000000 : 0x0A1820;
-            fb_put_pixel((int)x, (int)y, g_desktop_color ^ shade);
-        }
-    }
-}
 
 static void draw_taskbar(void) {
     struct fb_info *fb = fb_get();
@@ -76,7 +79,7 @@ static void draw_taskbar(void) {
         struct window *win = window_get(i);
         if (!win || !win->visible) continue;
         u32 c = (window_focused() == i) ? 0x4A5D6E : 0x36485A;
-        int bw = 140;
+        int bw = 130;
         fb_fill_rect(bx, y + 3, bw, TASKBAR_H - 7, c);
         font_draw_string(bx + 6, y + 7, win->title, 0xE0E8EE, c);
         bx += bw + 4;
@@ -86,25 +89,38 @@ static void draw_taskbar(void) {
     int hh = (int)((secs / 3600) % 24);
     int mm = (int)((secs / 60) % 60);
     int ss = (int)(secs % 60);
-    char buf[16];
-    snprintf(buf, sizeof(buf), "%02d:%02d:%02d", hh, mm, ss);
-    int tw = font_text_width(buf);
-    fb_fill_rect(w - tw - 16, y + 3, tw + 12, TASKBAR_H - 7, 0x1B262F);
-    font_draw_string(w - tw - 10, y + 7, buf, 0xC8D4DE, 0x1B262F);
+    char clock[20];
+    if (settings_clock_24h()) {
+        snprintf(clock, sizeof(clock), "%02d:%02d:%02d", hh, mm, ss);
+    } else {
+        int h12 = hh % 12;
+        if (h12 == 0) h12 = 12;
+        snprintf(clock, sizeof(clock), "%d:%02d:%02d %s", h12, mm, ss, hh < 12 ? "AM" : "PM");
+    }
+    int cw = font_text_width(clock);
+    int clock_x = w - cw - 16;
+    fb_fill_rect(clock_x, y + 3, cw + 12, TASKBAR_H - 7, 0x1B262F);
+    font_draw_string(clock_x + 6, y + 7, clock, 0xC8D4DE, 0x1B262F);
+
+    const char *lang = keyboard_layout_name();
+    int lw = font_text_width(lang);
+    int lang_x = clock_x - lw - 16;
+    fb_fill_rect(lang_x, y + 3, lw + 10, TASKBAR_H - 7, 0x1B262F);
+    font_draw_string(lang_x + 5, y + 7, lang, 0xE0A040, 0x1B262F);
 }
 
 static void draw_start_menu(void) {
     int x = 2;
     int y = start_menu_y();
-    int w = 200;
+    int w = 220;
     int h = start_menu_h();
     fb_fill_rect(x, y, w, h, 0x2A3742);
     fb_fill_rect(x, y, w, 1, 0x546878);
     fb_fill_rect(x, y + h - 1, w, 1, 0x101820);
-    font_draw_string(x + 10, y + 6, "Applications", 0x8FB8E0, 0x2A3742);
+    font_draw_string(x + 10, y + 6, tr(STR_START_TITLE), 0x8FB8E0, 0x2A3742);
     for (int i = 0; i < START_ITEMS; i++) {
         int iy = y + 20 + i * ITEM_H;
-        font_draw_string(x + 12, iy + 4, g_start_items[i], 0xE8F0F6, 0x2A3742);
+        font_draw_string(x + 12, iy + 4, tr(g_start_ids[i]), 0xE8F0F6, 0x2A3742);
     }
 }
 
@@ -130,7 +146,7 @@ static void draw_context_menu(void) {
 
     for (int i = 0; i < CTX_ITEMS; i++) {
         int iy = y + MENU_PAD + i * ITEM_H;
-        font_draw_string(x + 12, iy + 4, g_ctx_items[i], 0x101820, 0xD0D8DE);
+        font_draw_string(x + 12, iy + 4, tr(g_ctx_ids[i]), 0x101820, 0xD0D8DE);
     }
 }
 
@@ -142,7 +158,8 @@ void compositor_init(void) {
 }
 
 void compositor_paint(void) {
-    draw_desktop();
+    struct fb_info *fb = fb_get();
+    wallpaper_draw(0, 0, (int)fb->width, (int)fb->height);
     desktop_paint();
     window_paint_all();
     draw_taskbar();
@@ -163,6 +180,29 @@ int  compositor_menu_open(void)  { return g_menu_open; }
 void compositor_close_menu(void) { g_menu_open = 0; }
 int  compositor_taskbar_h(void)  { return TASKBAR_H; }
 int  compositor_start_w(void)    { return START_W; }
+
+static void dispatch_start(int item) {
+    if (item == 0) apps_launch_terminal();
+    else if (item == 1) apps_launch_browser();
+    else if (item == 2) apps_launch_notepad();
+    else if (item == 3) apps_launch_files();
+    else if (item == 4) apps_launch_photos();
+    else if (item == 5) apps_launch_media();
+    else if (item == 6) wallpaper_launch_settings();
+    else if (item == 7) settings_launch();
+    else if (item == 8) apps_launch_about();
+}
+
+static void dispatch_ctx(int item) {
+    if (item == 0) apps_launch_terminal();
+    else if (item == 1) apps_launch_browser();
+    else if (item == 2) apps_launch_notepad();
+    else if (item == 3) apps_launch_files();
+    else if (item == 4) apps_launch_photos();
+    else if (item == 5) apps_launch_media();
+    else if (item == 6) wallpaper_launch_settings();
+    else if (item == 7) settings_launch();
+}
 
 int compositor_handle_click(int mx, int my, int left, int right) {
     int taskbar_y = (int)fb_get()->height - TASKBAR_H;
@@ -190,10 +230,9 @@ int compositor_handle_click(int mx, int my, int left, int right) {
             int h = ctx_menu_h();
             if (mx >= x && mx < x + w && my >= y && my < y + h) {
                 int item = (my - y - MENU_PAD) / ITEM_H;
-                if (item == 0) apps_launch_terminal();
-                else if (item == 1) apps_launch_browser();
-                else if (item == 2) apps_launch_notepad();
-                else if (item == 3) apps_launch_files();
+                if (item < 0) item = 0;
+                if (item >= CTX_ITEMS) item = CTX_ITEMS - 1;
+                dispatch_ctx(item);
             }
             g_ctx_open = 0;
             result = 1;
@@ -207,24 +246,22 @@ int compositor_handle_click(int mx, int my, int left, int right) {
                 for (int i = 0; i < window_count(); i++) {
                     struct window *win = window_get(i);
                     if (!win || !win->visible) continue;
-                    if (mx >= bx && mx < bx + 140) {
+                    if (mx >= bx && mx < bx + 130) {
                         window_focus(i);
                         break;
                     }
-                    bx += 144;
+                    bx += 134;
                 }
                 result = 1;
             }
         } else if (g_menu_open) {
             int y = start_menu_y();
             int h = start_menu_h();
-            if (mx >= 2 && mx < 202 && my >= y && my < y + h) {
+            if (mx >= 2 && mx < 222 && my >= y && my < y + h) {
                 int item = (my - y - 20) / ITEM_H;
-                if (item == 0) apps_launch_terminal();
-                else if (item == 1) apps_launch_browser();
-                else if (item == 2) apps_launch_notepad();
-                else if (item == 3) apps_launch_files();
-                else if (item == 4) apps_launch_about();
+                if (item < 0) item = 0;
+                if (item >= START_ITEMS) item = START_ITEMS - 1;
+                dispatch_start(item);
             }
             g_menu_open = 0;
             result = 1;

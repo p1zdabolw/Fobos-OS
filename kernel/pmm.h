@@ -7,6 +7,7 @@ void  pmm_init(u64 mb2_info);
 phys_t pmm_alloc_frame(void);
 void  pmm_free_frame(phys_t p);
 phys_t pmm_alloc_frames(usize n);
+void  pmm_free_frames(phys_t p, usize n);
 u64   pmm_total_bytes(void);
 u64   pmm_free_bytes(void);
 

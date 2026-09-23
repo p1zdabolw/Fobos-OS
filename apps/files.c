@@ -5,6 +5,7 @@
 #include "../lib/string.h"
 #include "../lib/mem.h"
 #include "../lib/printf.h"
+#include "../lib/i18n.h"
 
 struct files_state {
     char names[FS_MAX_FILES][FS_MAX_NAME];
@@ -27,7 +28,7 @@ static void files_draw(struct window *win) {
     int h = win->h - 30;
     fb_fill_rect(ox, oy, win->w - 8, h, 0xFFFFFF);
     fb_fill_rect(ox, oy, win->w - 8, 18, 0xD8D8D8);
-    font_draw_string(ox + 4, oy + 1, "Name", 0x101010, 0xD8D8D8);
+    font_draw_string(ox + 4, oy + 1, tr(STR_FILES_NAME), 0x101010, 0xD8D8D8);
 
     for (int i = 0; i < st->count; i++) {
         int y = oy + 20 + i * FONT_H;
@@ -41,7 +42,7 @@ static void files_draw(struct window *win) {
     int fy = win->y + win->h - 22;
     fb_fill_rect(ox, fy, win->w - 8, 18, 0xE0E0E0);
     char buf[64];
-    snprintf(buf, sizeof(buf), "%d files", st->count);
+    snprintf(buf, sizeof(buf), tr(STR_FILES_COUNT), st->count);
     font_draw_string(ox + 4, fy + 1, buf, 0x202020, 0xE0E0E0);
 }
 
@@ -84,7 +85,7 @@ void apps_launch_files(void) {
         struct files_state *st = &g_files[i];
         memset(st, 0, sizeof(*st));
         files_refresh(st);
-        int id = window_create(180, 120, 420, 300, "Files");
+        int id = window_create(180, 120, 420, 300, tr(STR_APP_FILES));
         if (id < 0) return;
         struct window *win = window_get(id);
         win->user = st;

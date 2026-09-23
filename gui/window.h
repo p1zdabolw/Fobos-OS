@@ -29,5 +29,6 @@ void window_handle_mouse(int x, int y, int left, int right);
 void window_handle_key(char c);
 void window_handle_click(int x, int y);
 void window_sync_input(int left);
+void window_reclamp(void);
 
 #endif

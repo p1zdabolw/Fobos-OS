@@ -18,5 +18,6 @@ void desktop_sync_input(int left);
 void desktop_add_icon(const char *filename);
 void desktop_remove_icon(const char *filename);
 int  desktop_icon_count(void);
+void desktop_reclamp(void);
 
 #endif

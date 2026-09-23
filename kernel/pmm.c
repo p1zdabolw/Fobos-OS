@@ -119,5 +119,15 @@ void pmm_free_frame(phys_t p) {
     if (i < g_total_pages && bit_get(i)) { bit_clear(i); g_free_pages++; }
 }
 
+void pmm_free_frames(phys_t p, usize n) {
+    u64 start = p >> 12;
+    for (usize k = 0; k < n; k++) {
+        if (start + k < g_total_pages && bit_get(start + k)) {
+            bit_clear(start + k);
+            g_free_pages++;
+        }
+    }
+}
+
 u64 pmm_total_bytes(void) { return g_total_pages * PAGE_SIZE; }
 u64 pmm_free_bytes(void)  { return g_free_pages  * PAGE_SIZE; }

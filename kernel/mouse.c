@@ -6,8 +6,6 @@ static int g_x, g_y;
 static int g_left, g_right;
 static u8  g_cycle;
 static u8  g_packet[3];
-static int g_width  = 800;
-static int g_height = 600;
 
 static inline u8 inb(u16 p) { u8 v; __asm__ volatile("inb %1, %0" : "=a"(v) : "Nd"(p)); return v; }
 static inline void outb(u16 p, u8 v) { __asm__ volatile("outb %0, %1" :: "a"(v), "Nd"(p)); }
@@ -20,6 +18,15 @@ static void mouse_wait_read(void) {
 }
 static void mouse_write(u8 v) { mouse_wait_write(); outb(0x64, 0xD4); mouse_wait_write(); outb(0x60, v); }
 static u8   mouse_read(void)   { mouse_wait_read();  return inb(0x60); }
+
+extern int settings_mouse_speed(void);
+
+static int mouse_scale(void) {
+    int s = settings_mouse_speed();
+    if (s == 0) return 1;
+    if (s == 2) return 4;
+    return 2;
+}
 
 static void mouse_irq(struct registers *r) {
     (void)r;
@@ -39,13 +46,22 @@ static void mouse_irq(struct registers *r) {
     if (flags & 0x10) dx -= 256;
     if (flags & 0x20) dy -= 256;
 
+    int scale = mouse_scale();
+    dx = dx * scale / 2;
+    dy = dy * scale / 2;
+
     g_x += dx;
     g_y -= dy;
 
+    int w = (int)fb_get()->width;
+    int h = (int)fb_get()->height;
+    if (w <= 0) w = 800;
+    if (h <= 0) h = 600;
+
     if (g_x < 0) g_x = 0;
     if (g_y < 0) g_y = 0;
-    if (g_x >= g_width)  g_x = g_width  - 1;
-    if (g_y >= g_height) g_y = g_height - 1;
+    if (g_x >= w) g_x = w - 1;
+    if (g_y >= h) g_y = h - 1;
 
     g_left  = flags & 1;
     g_right = flags & 2;
@@ -70,12 +86,8 @@ void mouse_init(void) {
     mouse_write(0xF4);
     mouse_read();
 
-    struct fb_info *fb = fb_get();
-    if (fb->width)  g_width  = (int)fb->width;
-    if (fb->height) g_height = (int)fb->height;
-
-    g_x = g_width / 2;
-    g_y = g_height / 2;
+    g_x = (int)fb_get()->width / 2;
+    g_y = (int)fb_get()->height / 2;
     g_left = g_right = 0;
     g_cycle = 0;
 

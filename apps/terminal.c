@@ -4,9 +4,11 @@
 #include "../kernel/fs.h"
 #include "../kernel/timer.h"
 #include "../kernel/http.h"
+#include "../kernel/keyboard.h"
 #include "../lib/string.h"
 #include "../lib/mem.h"
 #include "../lib/printf.h"
+#include "../lib/i18n.h"
 #include "script.h"
 
 #define TERM_COLS 60
@@ -66,23 +68,28 @@ static int cmd_match(const char *cmd, const char *name, const char **arg) {
 }
 
 static void cmd_help(struct term_state *t) {
-    term_print(t, "FOS Terminal commands");
-    term_print(t, "  Files:     ls cat touch write rm cp mv head tail wc");
-    term_print(t, "             grep file stat tree df");
-    term_print(t, "  Shell:     echo clear pwd cd which history");
-    term_print(t, "  System:    ver uname mem free uptime date hostname");
-    term_print(t, "             whoami sleep");
-    term_print(t, "  Network:   ifconfig ping nslookup wget curl");
-    term_print(t, "  Scripting: run FILE, bash FILE");
-    term_print(t, "             FILE may be .bat, .cmd or .exe");
+    const char *h = tr(STR_TERM_HELP);
+    char line[TERM_COLS + 1];
+    usize start = 0;
+    for (usize i = 0; ; i++) {
+        if (h[i] == '\n' || h[i] == 0) {
+            usize n = i - start;
+            if (n > TERM_COLS) n = TERM_COLS;
+            memcpy(line, h + start, n);
+            line[n] = 0;
+            term_print(t, line);
+            start = i + 1;
+            if (h[i] == 0) break;
+        }
+    }
 }
 
 static void cmd_ver(struct term_state *t) {
-    term_print(t, "FOS 0.2 x86_64 -- Fobos Operating System");
+    term_print(t, "FOS 0.3 x86_64 -- Fobos Operating System");
 }
 
 static void cmd_uname(struct term_state *t) {
-    term_print(t, "FOS 0.2 x86_64");
+    term_print(t, "FOS 0.3 x86_64");
 }
 
 static void cmd_mem(struct term_state *t) {
@@ -110,17 +117,9 @@ static void cmd_date(struct term_state *t) {
     term_print(t, buf);
 }
 
-static void cmd_hostname(struct term_state *t) {
-    term_print(t, "fos");
-}
-
-static void cmd_whoami(struct term_state *t) {
-    term_print(t, "user");
-}
-
-static void cmd_pwd(struct term_state *t) {
-    term_print(t, "/");
-}
+static void cmd_hostname(struct term_state *t) { term_print(t, "fos"); }
+static void cmd_whoami(struct term_state *t)   { term_print(t, "user"); }
+static void cmd_pwd(struct term_state *t)      { term_print(t, "/"); }
 
 static void cmd_cd(struct term_state *t, const char *arg) {
     if (!arg[0] || strcmp(arg, "/") == 0 || strcmp(arg, "~") == 0) {
@@ -132,12 +131,12 @@ static void cmd_cd(struct term_state *t, const char *arg) {
 
 static void cmd_mkdir(struct term_state *t, const char *arg) {
     if (!arg[0]) { term_print(t, "usage: mkdir NAME"); return; }
-    term_print(t, "mkdir: FOS has a flat filesystem, no directories");
+    term_print(t, "mkdir: flat filesystem");
 }
 
 static void cmd_rmdir(struct term_state *t, const char *arg) {
     if (!arg[0]) { term_print(t, "usage: rmdir NAME"); return; }
-    term_print(t, "rmdir: FOS has a flat filesystem, no directories");
+    term_print(t, "rmdir: flat filesystem");
 }
 
 static void cmd_which(struct term_state *t, const char *arg) {
@@ -145,6 +144,27 @@ static void cmd_which(struct term_state *t, const char *arg) {
     char buf[TERM_COLS + 1];
     snprintf(buf, sizeof(buf), "/bin/%s", arg);
     term_print(t, buf);
+}
+
+static void cmd_lang(struct term_state *t, const char *arg) {
+    if (!arg[0]) {
+        char buf[64];
+        snprintf(buf, sizeof(buf), "Layout: %s (toggle: Shift+Alt)",
+                 keyboard_layout_name());
+        term_print(t, buf);
+        return;
+    }
+    if (strcmp(arg, "en") == 0) {
+        keyboard_set_layout(LAYOUT_EN);
+        term_print(t, "Layout: EN");
+        return;
+    }
+    if (strcmp(arg, "ru") == 0) {
+        keyboard_set_layout(LAYOUT_RU);
+        term_print(t, "Layout: RU");
+        return;
+    }
+    term_print(t, "usage: lang [en|ru]");
 }
 
 static void cmd_ls(struct term_state *t) {
@@ -392,9 +412,7 @@ static void cmd_mv(struct term_state *t, const char *arg) {
     term_print(t, "moved");
 }
 
-static void cmd_echo(struct term_state *t, const char *arg) {
-    term_print(t, arg);
-}
+static void cmd_echo(struct term_state *t, const char *arg) { term_print(t, arg); }
 
 static void cmd_sleep(struct term_state *t, const char *arg) {
     (void)t;
@@ -452,7 +470,7 @@ static void cmd_ifconfig(struct term_state *t) {
 }
 
 static u32 parse_ipv4(const char *s, int *ok) {
-    u32 parts[4] = {0, 0, 0, 0};
+    u32 parts[4] = {0,0,0,0};
     int p = 0;
     *ok = 0;
     while (*s && p < 4) {
@@ -483,9 +501,8 @@ static void cmd_ping(struct term_state *t, const char *arg) {
              (ip >> 24) & 0xFF, (ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF);
     term_print(t, buf);
     int rtt = net_ping(ip, 2000);
-    if (rtt < 0) {
-        term_print(t, "Request timed out.");
-    } else {
+    if (rtt < 0) term_print(t, "Request timed out.");
+    else {
         snprintf(buf, sizeof(buf), "Reply from %u.%u.%u.%u: time=%u ms",
                  (ip >> 24) & 0xFF, (ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF,
                  (u32)rtt);
@@ -511,7 +528,6 @@ static void cmd_wget(struct term_state *t, const char *arg) {
     extern int net_ready(void);
     if (!net_ready()) { term_print(t, "wget: no network device"); return; }
     if (!arg[0]) { term_print(t, "usage: wget URL"); return; }
-
     char url[256];
     if (strncmp(arg, "http://", 7) != 0 && strncmp(arg, "https://", 8) != 0) {
         snprintf(url, sizeof(url), "http://%s", arg);
@@ -519,21 +535,15 @@ static void cmd_wget(struct term_state *t, const char *arg) {
         strncpy(url, arg, sizeof(url) - 1);
         url[sizeof(url) - 1] = 0;
     }
-
     static u8 wget_body[65536];
     struct http_response resp;
     memset(&resp, 0, sizeof(resp));
-
     char msg[TERM_COLS + 1];
     snprintf(msg, sizeof(msg), "GET %s", url);
     term_print(t, msg);
-
     int rc = http_get_follow(url, sizeof(url), &resp, wget_body, sizeof(wget_body) - 1);
-
     if (rc == -100) {
         term_print(t, "Redirected to HTTPS, cannot follow.");
-        snprintf(msg, sizeof(msg), "  %.58s", resp.location);
-        term_print(t, msg);
         return;
     }
     if (rc != 0) {
@@ -541,31 +551,23 @@ static void cmd_wget(struct term_state *t, const char *arg) {
         term_print(t, msg);
         return;
     }
-
     snprintf(msg, sizeof(msg), "HTTP %d, %u bytes", resp.status, (u32)resp.body_len);
     term_print(t, msg);
     if (resp.content_type[0]) {
         snprintf(msg, sizeof(msg), "Type: %s", resp.content_type);
         term_print(t, msg);
     }
-    if (resp.redirect_count > 0) {
-        snprintf(msg, sizeof(msg), "Redirects: %d", resp.redirect_count);
-        term_print(t, msg);
-    }
-
     int shown = 0;
     usize off = 0;
     char line[TERM_COLS + 1];
-    while (off < resp.body_len && shown < 20) {
+    while (off < resp.body_len && shown < 15) {
         usize end = off;
         while (end < resp.body_len && wget_body[end] != '\n') end++;
         usize n = end - off;
         if (n > TERM_COLS) n = TERM_COLS;
         memcpy(line, wget_body + off, n);
         line[n] = 0;
-        for (usize k = 0; k < n; k++) {
-            if (line[k] == '\r') { line[k] = 0; break; }
-        }
+        for (usize k = 0; k < n; k++) if (line[k] == '\r') { line[k] = 0; break; }
         term_print(t, line);
         shown++;
         off = end + 1;
@@ -612,6 +614,7 @@ static void term_execute(struct term_state *t, const char *cmd) {
     if (cmd_match(cmd, "mkdir", &arg))    { cmd_mkdir(t, arg); return; }
     if (cmd_match(cmd, "rmdir", &arg))    { cmd_rmdir(t, arg); return; }
     if (cmd_match(cmd, "which", &arg))    { cmd_which(t, arg); return; }
+    if (cmd_match(cmd, "lang", &arg))     { cmd_lang(t, arg); return; }
     if (cmd_match(cmd, "clear", &arg)) {
         memset(t->lines, 0, sizeof(t->lines));
         t->row = 0;
@@ -672,6 +675,13 @@ static void term_draw(struct window *win) {
     }
 }
 
+static int char_is_input(char c) {
+    u8 u = (u8)c;
+    if (u >= 32 && u < 127) return 1;
+    if (u >= 0xC0) return 1;
+    return 0;
+}
+
 static void term_key(struct window *win, char c) {
     struct term_state *t = (struct term_state*)win->user;
     if (c == 0x1C || c == '\n') {
@@ -686,7 +696,7 @@ static void term_key(struct window *win, char c) {
         t->input[t->input_len] = 0;
         return;
     }
-    if (c >= 32 && c < 127 && t->input_len < TERM_COLS - 4) {
+    if (char_is_input(c) && t->input_len < TERM_COLS - 4) {
         t->input[t->input_len++] = c;
         t->input[t->input_len] = 0;
     }
@@ -715,15 +725,13 @@ static void term_open(struct term_state *t, const char *title, const char *initi
     win->user = t;
     win->on_draw = term_draw;
     win->on_key = term_key;
-    if (initial_cmd) {
-        term_execute(t, initial_cmd);
-    }
+    if (initial_cmd) term_execute(t, initial_cmd);
 }
 
 void apps_launch_terminal(void) {
     struct term_state *t = term_alloc();
     if (!t) return;
-    term_open(t, "Terminal", NULL);
+    term_open(t, tr(STR_APP_TERMINAL), NULL);
 }
 
 void apps_launch_terminal_exec(const char *filename) {

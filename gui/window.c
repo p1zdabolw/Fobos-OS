@@ -132,9 +132,7 @@ void window_handle_mouse(int mx, int my, int left, int right) {
         }
     }
 
-    if (!left && g_prev_left) {
-        g_dragging = -1;
-    }
+    if (!left && g_prev_left) g_dragging = -1;
 
     if (left && g_dragging >= 0) {
         struct window *win = &g_windows[g_dragging];
@@ -163,4 +161,20 @@ void window_handle_click(int x, int y) {
 
 void window_sync_input(int left) {
     g_prev_left = left;
+}
+
+void window_reclamp(void) {
+    int w = (int)fb_get()->width;
+    int h = (int)fb_get()->height;
+    int tb = h - compositor_taskbar_h();
+    for (int i = 0; i < g_count; i++) {
+        struct window *win = &g_windows[i];
+        if (!win->visible) continue;
+        if (win->w > w) win->w = w;
+        if (win->h > tb) win->h = tb;
+        if (win->x < 0) win->x = 0;
+        if (win->y < 0) win->y = 0;
+        if (win->x + win->w > w) win->x = w - win->w;
+        if (win->y + win->h > tb) win->y = tb - win->h;
+    }
 }

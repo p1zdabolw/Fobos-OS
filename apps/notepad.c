@@ -7,6 +7,7 @@
 #include "../lib/string.h"
 #include "../lib/mem.h"
 #include "../lib/printf.h"
+#include "../lib/i18n.h"
 
 #define NP_BUF 4096
 #define NP_VISIBLE_LINES 15
@@ -24,6 +25,13 @@ struct notepad_state {
 };
 
 static struct notepad_state g_pads[MAX_WINDOWS];
+
+static int printable_or_cyrillic(char c) {
+    u8 u = (u8)c;
+    if (u >= 32 && u < 127) return 1;
+    if (u >= 0xC0) return 1;
+    return 0;
+}
 
 static void np_set_filename(struct notepad_state *np, const char *name) {
     usize n = strlen(name);
@@ -96,7 +104,7 @@ static void np_draw(struct window *win) {
     int sy = win->y + win->h - SAVE_H;
     fb_fill_rect(win->x, sy, win->w, SAVE_H, 0xD8D8D8);
     fb_fill_rect(win->x, sy, win->w, 1, 0x808080);
-    font_draw_string(win->x + 6, sy + 6, "Name:", 0x101010, 0xD8D8D8);
+    font_draw_string(win->x + 6, sy + 6, tr(STR_NP_NAME), 0x101010, 0xD8D8D8);
 
     int fx = win->x + 52;
     int fy = sy + 4;
@@ -114,21 +122,25 @@ static void np_draw(struct window *win) {
     }
 
     int bx = fx + fw + 6;
-    int bw = 60;
+    int bw = 90;
     int bh = fh;
     fb_fill_rect(bx, fy, bw, bh, 0x4A6A8A);
     fb_fill_rect(bx, fy, bw, 1, 0x6A8AA8);
     fb_fill_rect(bx, fy + bh - 1, bw, 1, 0x2A4056);
-    font_draw_string(bx + 16, fy + 1, "Save", 0xFFFFFF, 0x4A6A8A);
+    {
+        const char *sv = tr(STR_NP_SAVE);
+        int tw = font_text_width(sv);
+        font_draw_string(bx + (bw - tw) / 2, fy + 1, sv, 0xFFFFFF, 0x4A6A8A);
+    }
 
     if (np->saved_at != 0 && timer_ticks() - np->saved_at < 150) {
-        font_draw_string(bx + bw + 10, fy + 1, "Saved", 0x107010, 0xD8D8D8);
+        font_draw_string(bx + bw + 10, fy + 1, tr(STR_NP_SAVED), 0x107010, 0xD8D8D8);
     }
 }
 
 static void np_do_save(struct notepad_state *np) {
     if (np->filename_len == 0) {
-        np_set_filename(np, "untitled.txt");
+        np_set_filename(np, tr(STR_NP_UNTITLED));
     }
     fs_write(np->filename, np->text, (usize)np->len);
     desktop_add_icon(np->filename);
@@ -174,7 +186,7 @@ static void np_key(struct window *win, char c) {
         }
         return;
     }
-    if (c >= 32 && c < 127 && np->len < NP_BUF - 1) {
+    if (printable_or_cyrillic(c) && np->len < NP_BUF - 1) {
         np->text[np->len++] = c;
         np->text[np->len] = 0;
         np->cursor = np->len;
@@ -190,7 +202,7 @@ static void np_click(struct window *win, int x, int y) {
         int fx = 52;
         int fw = 160;
         int bx = fx + fw + 6;
-        int bw = 60;
+        int bw = 90;
         int fh = 18;
         int fy = 4;
         if (x >= fx && x < fx + fw && y >= sy + fy && y < sy + fy + fh) {
@@ -230,7 +242,7 @@ static void np_show(struct notepad_state *np, const char *title, const char *con
 void apps_launch_notepad(void) {
     struct notepad_state *np = np_alloc();
     if (!np) return;
-    np_show(np, "Notepad", NULL);
+    np_show(np, tr(STR_APP_NOTEPAD), NULL);
 }
 
 void apps_launch_notepad_file(const char *filename) {
@@ -250,8 +262,8 @@ void apps_launch_notepad_file(const char *filename) {
 void apps_launch_about(void) {
     struct notepad_state *np = np_alloc();
     if (!np) return;
-    np_show(np, "About FOS",
-        "FOS 0.1 -- Fobos Operating System\n"
+    np_show(np, tr(STR_APP_ABOUT),
+        "FOS 0.3 -- Fobos Operating System\n"
         "\n"
         "Architecture: x86_64 (long mode)\n"
         "Kernel: monolithic, custom\n"
@@ -262,13 +274,14 @@ void apps_launch_about(void) {
         "Compositor: software, double buffered\n"
         "Input: PS/2 keyboard + mouse\n"
         "Filesystem: in-memory (initramfs-like)\n"
+        "Network: RTL8139, ARP, IPv4, UDP, DNS, TCP, HTTP\n"
+        "\n"
+        "Keyboard layouts:\n"
+        "  Press Shift + Alt to toggle EN / RU\n"
         "\n"
         "Desktop icons:\n"
         "  .txt   white page\n"
         "  .exe   blue window\n"
         "  .cmd   green prompt\n"
-        "\n"
-        "Click icon once to select, again to open.\n"
-        "Drag icon to move it.\n"
-        "Right-click desktop for a menu.\n");
+        "  .url   Internet Explorer\n");
 }

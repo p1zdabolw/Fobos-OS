@@ -36,20 +36,26 @@ C_SRCS := \
   kernel/net.c \
   kernel/http.c \
   kernel/html.c \
+  kernel/speaker.c \
   lib/string.c \
   lib/mem.c \
   lib/printf.c \
+  lib/i18n.c \
   gui/font.c \
   gui/cursor.c \
   gui/compositor.c \
   gui/window.c \
   gui/widget.c \
   gui/desktop.c \
+  gui/wallpaper.c \
+  gui/settings.c \
   apps/terminal.c \
   apps/files.c \
   apps/notepad.c \
   apps/script.c \
-  apps/browser.c
+  apps/browser.c \
+  apps/photos.c \
+  apps/media.c
 
 ASM_SRCS := \
   boot/multiboot2.asm \
@@ -91,7 +97,7 @@ verify-grub: $(ISO)
 	@echo "-------------------------------"
 
 run: $(ISO)
-	$(QEMU) -cdrom $(ISO) -m 256 -serial stdio -vga std -nic user,model=rtl8139
+	$(QEMU) -cdrom $(ISO) -m 256 -serial stdio -vga std -nic user,model=rtl8139 -audiodev pa,id=snd0 -machine pcspk-audiodev=snd0
 
 run-nox: $(ISO)
 	$(QEMU) -cdrom $(ISO) -m 128 -display none -serial stdio -nic user,model=rtl8139
