@@ -13,5 +13,8 @@ int   fs_remove(const char *name);
 void *fs_read(const char *name, usize *out_size);
 int   fs_exists(const char *name);
 int   fs_list(char names[][FS_MAX_NAME], int max);
+void fs_enable_disk(int on);
+void fs_load_from_disk(void);
+void fs_sync(void);
 
 #endif

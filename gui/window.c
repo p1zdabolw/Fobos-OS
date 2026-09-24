@@ -7,6 +7,7 @@
 
 #define TITLE_H 22
 #define BORDER  1
+#define DRAG_KEEP 48
 
 static struct window g_windows[MAX_WINDOWS];
 static int g_count;
@@ -37,6 +38,8 @@ int window_create(int x, int y, int w, int h, const char *title) {
     win->y = y;
     win->w = w;
     win->h = h;
+    win->wanted_w = w;
+    win->wanted_h = h;
     strncpy(win->title, title, 31);
     win->title[31] = 0;
     win->visible = 1;
@@ -106,10 +109,20 @@ void window_paint_all(void) {
     }
 }
 
+static void clamp_drag(struct window *win) {
+    int sw = (int)fb_get()->width;
+    int taskbar_y = (int)fb_get()->height - compositor_taskbar_h();
+
+    if (win->x + win->w < DRAG_KEEP) win->x = DRAG_KEEP - win->w;
+    if (win->x > sw - DRAG_KEEP)     win->x = sw - DRAG_KEEP;
+
+    if (win->y + TITLE_H < DRAG_KEEP) win->y = DRAG_KEEP - TITLE_H;
+    if (win->y > taskbar_y - DRAG_KEEP) win->y = taskbar_y - DRAG_KEEP;
+}
+
 void window_handle_mouse(int mx, int my, int left, int right) {
     (void)right;
     int new_left = left && !g_prev_left;
-    int taskbar_y = (int)fb_get()->height - compositor_taskbar_h();
 
     if (new_left) {
         for (int i = g_count - 1; i >= 0; i--) {
@@ -138,10 +151,7 @@ void window_handle_mouse(int mx, int my, int left, int right) {
         struct window *win = &g_windows[g_dragging];
         win->x = mx - g_drag_dx;
         win->y = my - g_drag_dy;
-        if (win->x < 0) win->x = 0;
-        if (win->y < 0) win->y = 0;
-        if (win->x + win->w > (int)fb_get()->width) win->x = (int)fb_get()->width - win->w;
-        if (win->y + win->h > taskbar_y) win->y = taskbar_y - win->h;
+        clamp_drag(win);
     }
 
     g_prev_left = left;
@@ -164,17 +174,28 @@ void window_sync_input(int left) {
 }
 
 void window_reclamp(void) {
-    int w = (int)fb_get()->width;
-    int h = (int)fb_get()->height;
-    int tb = h - compositor_taskbar_h();
+    int sw = (int)fb_get()->width;
+    int taskbar_y = (int)fb_get()->height - compositor_taskbar_h();
+
     for (int i = 0; i < g_count; i++) {
         struct window *win = &g_windows[i];
         if (!win->visible) continue;
-        if (win->w > w) win->w = w;
-        if (win->h > tb) win->h = tb;
+
+        int tw = win->wanted_w;
+        int th = win->wanted_h;
+        if (tw > sw) tw = sw;
+        if (th > taskbar_y) th = taskbar_y;
+        if (tw < 160) tw = 160;
+        if (th < 120) th = 120;
+
+        win->w = tw;
+        win->h = th;
+
+        if (win->x + win->w < DRAG_KEEP) win->x = DRAG_KEEP - win->w;
+        if (win->x > sw - DRAG_KEEP)     win->x = sw - DRAG_KEEP;
+        if (win->y + TITLE_H < DRAG_KEEP) win->y = DRAG_KEEP - TITLE_H;
+        if (win->y > taskbar_y - DRAG_KEEP) win->y = taskbar_y - DRAG_KEEP;
         if (win->x < 0) win->x = 0;
         if (win->y < 0) win->y = 0;
-        if (win->x + win->w > w) win->x = w - win->w;
-        if (win->y + win->h > tb) win->y = tb - win->h;
     }
 }

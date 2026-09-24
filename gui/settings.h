@@ -5,6 +5,8 @@
 
 void settings_init(void);
 void settings_launch(void);
+void settings_save(void);
+void settings_load(void);
 
 int  settings_clock_24h(void);
 void settings_set_clock_24h(int on);

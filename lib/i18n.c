@@ -31,6 +31,7 @@ static const char *g_en[STR_COUNT] = {
     [STR_SETTINGS_LANG]        = "Keyboard Language",
     [STR_SETTINGS_LANG_HINT]   = "Toggle: press Shift + Alt together",
     [STR_SETTINGS_UI_LANG]     = "Interface Language",
+    [STR_SETTINGS_TIMEZONE]    = "Timezone",
     [STR_SETTINGS_UI_HINT]     = "Applies immediately to menus, buttons and windows",
     [STR_SETTINGS_KB_TEST]     = "Keyboard test -- click the field and type:",
     [STR_SETTINGS_CLEAR]       = "Clear",
@@ -49,7 +50,7 @@ static const char *g_en[STR_COUNT] = {
     [STR_SETTINGS_UPTIME]      = "Uptime: %u:%02u:%02u",
     [STR_SETTINGS_NETWORK]     = "Network: %u.%u.%u.%u",
     [STR_SETTINGS_NO_NET]      = "Network: no device",
-    [STR_SETTINGS_KERNEL]      = "Kernel: FOS 0.3 x86_64",
+    [STR_SETTINGS_KERNEL]      = "Kernel: FOS 0.4 x86_64",
     [STR_SETTINGS_RES_FAIL]    = "Resolution not supported by VBE",
 
     [STR_WP_TITLE]             = "Wallpaper",
@@ -122,6 +123,7 @@ static const char *g_en[STR_COUNT] = {
         "           whoami sleep\n"
         "Network:   ifconfig ping nslookup wget curl\n"
         "Language:  lang [en|ru]\n"
+        "Timezone:  tz [N|list]\n"
         "Scripting: run FILE, bash FILE",
 };
 
@@ -153,6 +155,7 @@ static const char *g_ru[STR_COUNT] = {
     [STR_SETTINGS_LANG]        = "\xFF\xE7\xFB\xEA \xEA\xEB\xE0\xE2\xE8\xE0\xF2\xF3\xF0\xFB",
     [STR_SETTINGS_LANG_HINT]   = "\xCF\xE5\xF0\xE5\xEA\xEB\xFE\xF7\xE5\xED\xE8\xE5: Shift + Alt",
     [STR_SETTINGS_UI_LANG]     = "\xFF\xE7\xFB\xEA \xE8\xED\xF2\xE5\xF0\xF4\xE5\xE9\xF1\xE0",
+    [STR_SETTINGS_TIMEZONE]    = "\xD7\xE0\xF1\xEE\xE2\xEE\xE9 \xEF\xEE\xFF\xF1",
     [STR_SETTINGS_UI_HINT]     = "\xCF\xF0\xE8\xEC\xE5\xED\xFF\xE5\xF2\xF1\xFF \xF1\xF0\xE0\xE7\xF3 \xE6\xE5",
     [STR_SETTINGS_KB_TEST]     = "\xCF\xF0\xEE\xE2\xE5\xF0\xEA\xE0 \xEA\xEB\xE0\xE2\xE8\xE0\xF2\xF3\xF0\xFB:",
     [STR_SETTINGS_CLEAR]       = "\xCE\xF7\xE8\xF1\xF2\xE8\xF2\xFC",
@@ -171,7 +174,7 @@ static const char *g_ru[STR_COUNT] = {
     [STR_SETTINGS_UPTIME]      = "\xC2\xF0\xE5\xEC\xFF \xF0\xE0\xE1\xEE\xF2\xFB: %u:%02u:%02u",
     [STR_SETTINGS_NETWORK]     = "\xD1\xE5\xF2\xFC: %u.%u.%u.%u",
     [STR_SETTINGS_NO_NET]      = "\xD1\xE5\xF2\xFC: \xED\xE5\xF2 \xF3\xF1\xF2\xF0\xEE\xE9\xF1\xF2\xE2\xE0",
-    [STR_SETTINGS_KERNEL]      = "\xFF\xE4\xF0\xEE: FOS 0.3 x86_64",
+    [STR_SETTINGS_KERNEL]      = "\xFF\xE4\xF0\xEE: FOS 0.4 x86_64",
     [STR_SETTINGS_RES_FAIL]    = "\xD0\xE0\xE7\xF0\xE5\xF8\xE5\xED\xE8\xE5 \xED\xE5 \xEF\xEE\xE4\xE4\xE5\xF0\xE6\xE8\xE2\xE0\xE5\xF2\xF1\xFF VBE",
 
     [STR_WP_TITLE]             = "\xCE\xE1\xEE\xE8",
@@ -244,6 +247,7 @@ static const char *g_ru[STR_COUNT] = {
         "           hostname whoami sleep\n"
         "\xD1\xE5\xF2\xFC:      ifconfig ping nslookup wget curl\n"
         "\xFF\xE7\xFB\xEA:      lang [en|ru]\n"
+        "\xC2\xF0\xE5\xEC\xFF:    tz [N|list]\n"
         "\xD1\xEA\xF0\xE8\xEF\xF2\xFB:  run FILE, bash FILE",
 };
 

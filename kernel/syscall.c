@@ -30,7 +30,7 @@ void syscall_dispatch(struct registers *r) {
             break;
         }
         case SYS_READ:  r->rax = 0; break;
-        case SYS_GETPID: r->rax = sched_current(); break;
+        case SYS_GETPID: r->rax = sched_current_id(); break;
         case SYS_YIELD: sched_yield(); r->rax = 0; break;
         default: r->rax = (u64)-1; break;
     }

@@ -24,11 +24,14 @@ C_SRCS := \
   kernel/vmm.c \
   kernel/heap.c \
   kernel/timer.c \
+  kernel/rtc.c \
   kernel/keyboard.c \
   kernel/mouse.c \
   kernel/pci.c \
   kernel/fb.c \
   kernel/fs.c \
+  kernel/ata.c \
+  kernel/diskfs.c \
   kernel/sched.c \
   kernel/syscall.c \
   kernel/elf.c \
@@ -59,7 +62,8 @@ C_SRCS := \
 
 ASM_SRCS := \
   boot/multiboot2.asm \
-  kernel/isr.asm
+  kernel/isr.asm \
+  kernel/sched_asm.asm
 
 C_OBJS   := $(C_SRCS:.c=.o)
 ASM_OBJS := $(ASM_SRCS:.asm=.o)
@@ -67,10 +71,11 @@ OBJS     := $(ASM_OBJS) $(C_OBJS)
 
 KERNEL := fos.elf
 ISO    := fos.iso
+DISK   := fos.img
 
-.PHONY: all clean run run-nox iso verify-grub
+.PHONY: all clean run run-nox iso verify-grub reset-disk
 
-all: $(ISO)
+all: $(ISO) $(DISK)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -80,6 +85,9 @@ all: $(ISO)
 
 $(KERNEL): $(OBJS) linker.ld
 	$(LD) $(LDFLAGS) -o $@ $(OBJS)
+
+$(DISK):
+	dd if=/dev/zero of=$(DISK) bs=512 count=20480 2>/dev/null
 
 iso: $(ISO)
 
@@ -96,11 +104,19 @@ verify-grub: $(ISO)
 	@cat /tmp/fos_grub.cfg
 	@echo "-------------------------------"
 
-run: $(ISO)
-	$(QEMU) -cdrom $(ISO) -m 256 -serial stdio -vga std -nic user,model=rtl8139 -audiodev pa,id=snd0 -machine pcspk-audiodev=snd0
+reset-disk:
+	rm -f $(DISK)
 
-run-nox: $(ISO)
-	$(QEMU) -cdrom $(ISO) -m 128 -display none -serial stdio -nic user,model=rtl8139
+run: $(ISO) $(DISK)
+	$(QEMU) -cdrom $(ISO) -m 256 -serial stdio -vga std \
+	        -drive file=$(DISK),format=raw,if=ide,index=0,media=disk \
+	        -nic user,model=rtl8139 \
+	        -audiodev pa,id=snd0 -machine pcspk-audiodev=snd0
+
+run-nox: $(ISO) $(DISK)
+	$(QEMU) -cdrom $(ISO) -m 128 -display none -serial stdio \
+	        -drive file=$(DISK),format=raw,if=ide,index=0,media=disk \
+	        -nic user,model=rtl8139
 
 clean:
 	rm -f $(OBJS) $(KERNEL) $(ISO)

@@ -3,8 +3,10 @@
 #include "../kernel/fb.h"
 #include "../kernel/fs.h"
 #include "../kernel/timer.h"
+#include "../kernel/rtc.h"
 #include "../kernel/http.h"
 #include "../kernel/keyboard.h"
+#include "../kernel/sched.h"
 #include "../lib/string.h"
 #include "../lib/mem.h"
 #include "../lib/printf.h"
@@ -16,6 +18,44 @@
 #define TERM_CHAR_W FONT_W
 #define TERM_CHAR_H FONT_H
 #define HISTORY_MAX 16
+#define TZ_COUNT 28
+
+static const char *g_tz_names[TZ_COUNT] = {
+    "UTC-12:00",
+    "UTC-11:00",
+    "UTC-10:00 Hawaii",
+    "UTC-09:00 Alaska",
+    "UTC-08:00 Los Angeles",
+    "UTC-07:00 Denver",
+    "UTC-06:00 Chicago",
+    "UTC-05:00 New York",
+    "UTC-04:00 Santiago",
+    "UTC-03:00 Sao Paulo",
+    "UTC-02:00",
+    "UTC-01:00 Azores",
+    "UTC+00:00 London",
+    "UTC+01:00 Berlin",
+    "UTC+02:00 Cairo",
+    "UTC+03:00 Moscow",
+    "UTC+04:00 Dubai",
+    "UTC+05:00 Karachi",
+    "UTC+05:30 Mumbai",
+    "UTC+06:00 Dhaka",
+    "UTC+07:00 Bangkok",
+    "UTC+08:00 Beijing",
+    "UTC+09:00 Tokyo",
+    "UTC+10:00 Sydney",
+    "UTC+11:00",
+    "UTC+12:00 Auckland",
+    "UTC+13:00",
+    "UTC+14:00",
+};
+
+static const int g_tz_offsets[TZ_COUNT] = {
+    -720, -660, -600, -540, -480, -420, -360, -300, -240, -180,
+    -120,  -60,    0,   60,  120,  180,  240,  300,  330,  360,
+     420,  480,  540,  600,  660,  720,  780,  840,
+};
 
 struct term_state {
     char lines[TERM_ROWS][TERM_COLS + 1];
@@ -82,14 +122,16 @@ static void cmd_help(struct term_state *t) {
             if (h[i] == 0) break;
         }
     }
+    term_print(t, "  Storage:   sync save");
+    term_print(t, "  RT:        rtstat");
 }
 
 static void cmd_ver(struct term_state *t) {
-    term_print(t, "FOS 0.3 x86_64 -- Fobos Operating System");
+    term_print(t, "FOS 0.4 x86_64 -- Fobos Operating System");
 }
 
 static void cmd_uname(struct term_state *t) {
-    term_print(t, "FOS 0.3 x86_64");
+    term_print(t, "FOS 0.4 x86_64");
 }
 
 static void cmd_mem(struct term_state *t) {
@@ -112,8 +154,21 @@ static void cmd_uptime(struct term_state *t) {
 }
 
 static void cmd_date(struct term_state *t) {
-    char buf[48];
-    snprintf(buf, sizeof(buf), "Uptime: %u s", (u32)timer_uptime_seconds());
+    struct rtc_time tm;
+    rtc_read(&tm);
+    static const char *wd[7] = {
+        "Sunday", "Monday", "Tuesday", "Wednesday",
+        "Thursday", "Friday", "Saturday"
+    };
+    int w = tm.weekday;
+    if (w < 0 || w > 6) w = 0;
+    char buf[80];
+    snprintf(buf, sizeof(buf), "%04d-%02d-%02d %02d:%02d:%02d %s",
+             tm.year, tm.month, tm.day,
+             tm.hour, tm.minute, tm.second,
+             wd[w]);
+    term_print(t, buf);
+    snprintf(buf, sizeof(buf), "uptime: %u s", (u32)timer_uptime_seconds());
     term_print(t, buf);
 }
 
@@ -165,6 +220,49 @@ static void cmd_lang(struct term_state *t, const char *arg) {
         return;
     }
     term_print(t, "usage: lang [en|ru]");
+}
+
+static void cmd_tz(struct term_state *t, const char *arg) {
+    if (!arg[0]) {
+        int off = rtc_get_offset();
+        int sign = off < 0 ? '-' : '+';
+        int a = off < 0 ? -off : off;
+        char buf[64];
+        snprintf(buf, sizeof(buf), "Timezone offset: UTC%c%02d:%02d (%d min)",
+                 sign, a / 60, a % 60, off);
+        term_print(t, buf);
+        term_print(t, "Use 'tz N' (0..27) to pick a preset.");
+        term_print(t, "Use 'tz list' to see the presets.");
+        return;
+    }
+
+    if (strcmp(arg, "list") == 0) {
+        term_print(t, "Presets:");
+        for (int i = 0; i < TZ_COUNT; i++) {
+            char buf[TERM_COLS + 1];
+            snprintf(buf, sizeof(buf), "  %2d  %s", i, g_tz_names[i]);
+            term_print(t, buf);
+        }
+        return;
+    }
+
+    int n = 0;
+    const char *p = arg;
+    while (*p >= '0' && *p <= '9') { n = n * 10 + (*p - '0'); p++; }
+    if (*p != 0 || n < 0 || n >= TZ_COUNT) {
+        term_print(t, "tz: index out of range (0..27)");
+        return;
+    }
+    int off = g_tz_offsets[n];
+    rtc_set_offset(off);
+    char buf[64];
+    int a = off < 0 ? -off : off;
+    int sign = off < 0 ? '-' : '+';
+    snprintf(buf, sizeof(buf), "Timezone set to UTC%c%02d:%02d (%s)",
+             sign, a / 60, a % 60, g_tz_names[n]);
+    term_print(t, buf);
+    extern void settings_save(void);
+    settings_save();
 }
 
 static void cmd_ls(struct term_state *t) {
@@ -421,7 +519,7 @@ static void cmd_sleep(struct term_state *t, const char *arg) {
     for (const char *p = arg; *p >= '0' && *p <= '9'; p++) n = n * 10 + (u32)(*p - '0');
     if (n == 0) n = 1;
     if (n > 10) n = 10;
-    u64 target = timer_ticks() + (u64)n * 100;
+    u64 target = timer_ticks() + (u64)n * 1000;
     while (timer_ticks() < target) { }
 }
 
@@ -578,6 +676,35 @@ static void cmd_wget(struct term_state *t, const char *arg) {
     }
 }
 
+static void cmd_sync(struct term_state *t) {
+    extern void fs_sync(void);
+    extern int  dfs_available(void);
+    if (!dfs_available()) { term_print(t, "sync: no disk"); return; }
+    fs_sync();
+    term_print(t, "synced");
+}
+
+static void cmd_save(struct term_state *t) {
+    extern void settings_save(void);
+    settings_save();
+    term_print(t, "settings saved");
+}
+
+static void cmd_rtstat(struct term_state *t) {
+    char buf[TERM_COLS + 1];
+    term_print(t, "Task       Prio  Period  Switches  MaxJit  AvgJit  Missed");
+    for (int i = 0; i < sched_task_count(); i++) {
+        struct tcb *tk = sched_task((u64)i);
+        if (!tk) continue;
+        u32 avg = tk->jitter_samples ? (u32)(tk->total_jitter_ms / tk->jitter_samples) : 0;
+        snprintf(buf, sizeof(buf), "%-10s %4d  %6u  %8u  %6u  %6u  %6u",
+                 tk->name, tk->priority, tk->period_ms,
+                 (u32)tk->switch_count, tk->max_jitter_ms, avg,
+                 (u32)tk->periods_missed);
+        term_print(t, buf);
+    }
+}
+
 static void term_execute(struct term_state *t, const char *cmd) {
     char line[TERM_COLS + 4];
     snprintf(line, sizeof(line), "> %s", cmd);
@@ -615,6 +742,7 @@ static void term_execute(struct term_state *t, const char *cmd) {
     if (cmd_match(cmd, "rmdir", &arg))    { cmd_rmdir(t, arg); return; }
     if (cmd_match(cmd, "which", &arg))    { cmd_which(t, arg); return; }
     if (cmd_match(cmd, "lang", &arg))     { cmd_lang(t, arg); return; }
+    if (cmd_match(cmd, "tz", &arg))       { cmd_tz(t, arg); return; }
     if (cmd_match(cmd, "clear", &arg)) {
         memset(t->lines, 0, sizeof(t->lines));
         t->row = 0;
@@ -647,6 +775,9 @@ static void term_execute(struct term_state *t, const char *cmd) {
     if (cmd_match(cmd, "nslookup", &arg)) { cmd_nslookup(t, arg); return; }
     if (cmd_match(cmd, "wget", &arg))     { cmd_wget(t, arg); return; }
     if (cmd_match(cmd, "curl", &arg))     { cmd_wget(t, arg); return; }
+    if (cmd_match(cmd, "sync", &arg))     { cmd_sync(t); return; }
+    if (cmd_match(cmd, "save", &arg))     { cmd_save(t); return; }
+    if (cmd_match(cmd, "rtstat", &arg))   { cmd_rtstat(t); return; }
 
     term_print(t, "unknown command, type 'help'");
 }
@@ -669,7 +800,7 @@ static void term_draw(struct window *win) {
         font_draw_char(ox + (2 + c) * TERM_CHAR_W, oy + r * TERM_CHAR_H,
                        t->input[c], 0xE8E8E8, 0x101818);
     }
-    if ((timer_ticks() / 50) & 1) {
+    if ((timer_ticks() / 500) & 1) {
         fb_fill_rect(ox + (2 + t->input_len) * TERM_CHAR_W, oy + r * TERM_CHAR_H,
                      FONT_W, FONT_H, 0xC0C0C0);
     }

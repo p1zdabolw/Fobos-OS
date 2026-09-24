@@ -8,6 +8,7 @@
 #include "../kernel/mouse.h"
 #include "../kernel/timer.h"
 #include "../kernel/keyboard.h"
+#include "../kernel/rtc.h"
 #include "../lib/i18n.h"
 #include "font.h"
 #include "../lib/printf.h"
@@ -18,6 +19,8 @@
 #define CTX_ITEMS 8
 #define ITEM_H 24
 #define MENU_PAD 4
+#define TB_BTN_W 130
+#define TB_BTN_GAP 4
 
 static int g_menu_open;
 static int g_ctx_open;
@@ -79,23 +82,24 @@ static void draw_taskbar(void) {
         struct window *win = window_get(i);
         if (!win || !win->visible) continue;
         u32 c = (window_focused() == i) ? 0x4A5D6E : 0x36485A;
-        int bw = 130;
-        fb_fill_rect(bx, y + 3, bw, TASKBAR_H - 7, c);
+        fb_fill_rect(bx, y + 3, TB_BTN_W, TASKBAR_H - 7, c);
         font_draw_string(bx + 6, y + 7, win->title, 0xE0E8EE, c);
-        bx += bw + 4;
+        fb_fill_rect(bx + TB_BTN_W - 16, y + 8, 12, 12, 0xC05050);
+        font_draw_string(bx + TB_BTN_W - 15, y + 6, "x", 0xFFFFFF, 0xC05050);
+        bx += TB_BTN_W + TB_BTN_GAP;
     }
 
-    u64 secs = timer_uptime_seconds();
-    int hh = (int)((secs / 3600) % 24);
-    int mm = (int)((secs / 60) % 60);
-    int ss = (int)(secs % 60);
-    char clock[20];
+    struct rtc_time tm;
+    rtc_read(&tm);
+    char clock[24];
     if (settings_clock_24h()) {
-        snprintf(clock, sizeof(clock), "%02d:%02d:%02d", hh, mm, ss);
+        snprintf(clock, sizeof(clock), "%02d:%02d:%02d",
+                 tm.hour, tm.minute, tm.second);
     } else {
-        int h12 = hh % 12;
+        int h12 = tm.hour % 12;
         if (h12 == 0) h12 = 12;
-        snprintf(clock, sizeof(clock), "%d:%02d:%02d %s", h12, mm, ss, hh < 12 ? "AM" : "PM");
+        snprintf(clock, sizeof(clock), "%d:%02d:%02d %s",
+                 h12, tm.minute, tm.second, tm.hour < 12 ? "AM" : "PM");
     }
     int cw = font_text_width(clock);
     int clock_x = w - cw - 16;
@@ -204,6 +208,32 @@ static void dispatch_ctx(int item) {
     else if (item == 7) settings_launch();
 }
 
+static int taskbar_hit(int mx, int my) {
+    int taskbar_y = (int)fb_get()->height - TASKBAR_H;
+    if (my < taskbar_y) return -1;
+    int bx = START_W + 8;
+    for (int i = 0; i < window_count(); i++) {
+        struct window *win = window_get(i);
+        if (!win || !win->visible) continue;
+        if (mx >= bx && mx < bx + TB_BTN_W) return i;
+        bx += TB_BTN_W + TB_BTN_GAP;
+    }
+    return -1;
+}
+
+static int taskbar_close_hit(int mx, int my) {
+    int taskbar_y = (int)fb_get()->height - TASKBAR_H;
+    if (my < taskbar_y) return -1;
+    int bx = START_W + 8;
+    for (int i = 0; i < window_count(); i++) {
+        struct window *win = window_get(i);
+        if (!win || !win->visible) continue;
+        if (mx >= bx + TB_BTN_W - 20 && mx < bx + TB_BTN_W && my >= taskbar_y + 5) return i;
+        bx += TB_BTN_W + TB_BTN_GAP;
+    }
+    return -1;
+}
+
 int compositor_handle_click(int mx, int my, int left, int right) {
     int taskbar_y = (int)fb_get()->height - TASKBAR_H;
     int new_right = right && !g_prev_right;
@@ -211,7 +241,13 @@ int compositor_handle_click(int mx, int my, int left, int right) {
     int result = 0;
 
     if (new_right) {
-        if (my < taskbar_y) {
+        int idx = taskbar_hit(mx, my);
+        if (idx >= 0) {
+            window_destroy(idx);
+            g_ctx_open = 0;
+            g_menu_open = 0;
+            result = 1;
+        } else if (my < taskbar_y) {
             g_ctx_open = 1;
             g_ctx_x = mx;
             g_ctx_y = my;
@@ -242,15 +278,12 @@ int compositor_handle_click(int mx, int my, int left, int right) {
                 g_ctx_open = 0;
                 result = 1;
             } else {
-                int bx = START_W + 8;
-                for (int i = 0; i < window_count(); i++) {
-                    struct window *win = window_get(i);
-                    if (!win || !win->visible) continue;
-                    if (mx >= bx && mx < bx + 130) {
-                        window_focus(i);
-                        break;
-                    }
-                    bx += 134;
+                int close_idx = taskbar_close_hit(mx, my);
+                if (close_idx >= 0) {
+                    window_destroy(close_idx);
+                } else {
+                    int idx = taskbar_hit(mx, my);
+                    if (idx >= 0) window_focus(idx);
                 }
                 result = 1;
             }

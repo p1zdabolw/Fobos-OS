@@ -1,5 +1,6 @@
 #include "timer.h"
 #include "idt.h"
+#include "sched.h"
 
 #define PIT_HZ 1193182
 
@@ -11,8 +12,8 @@ static inline void outb(u16 port, u8 val) {
 }
 
 static void timer_irq(struct registers *r) {
-    (void)r;
     g_ticks++;
+    sched_timer_tick(r);
 }
 
 void timer_init(u32 hz) {

@@ -13,6 +13,7 @@
 
 extern void photos_render(int index, u32 *out, int w, int h);
 extern int  photos_count(void);
+extern void settings_save(void);
 
 static int g_mode = WALL_GRADIENT_V;
 static int g_photo_index = 0;
@@ -247,6 +248,7 @@ static void ws_click(struct window *win, int x, int y) {
                 g_photo_index = (g_photo_index + 1) % n;
             }
             wallpaper_set(i);
+            settings_save();
             return;
         }
     }

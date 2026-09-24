@@ -71,7 +71,15 @@ void irq_register(int irq, irq_handler_t h) {
 
 void isr_dispatch(struct registers *r) {
     if (r->vector < 32) {
-        kprintf("exception %u err=%x rip=%p\n", (u32)r->vector, r->error, (void*)r->rip);
+        u64 cr2 = 0;
+        __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
+        kprintf("exception %u err=%x\n", (u32)r->vector, (u32)r->error);
+        kprintf("  rip=%p  cs=%x  rflags=%x\n",
+                (void*)r->rip, (u32)r->cs, (u32)r->rflags);
+        kprintf("  rax=%p  rbx=%p  rcx=%p  rdx=%p\n",
+                (void*)r->rax, (void*)r->rbx, (void*)r->rcx, (void*)r->rdx);
+        kprintf("  rsi=%p  rdi=%p  rbp=%p  cr2=%p\n",
+                (void*)r->rsi, (void*)r->rdi, (void*)r->rbp, (void*)cr2);
         for (;;) __asm__ volatile("hlt");
     }
     if (r->vector == 128) {

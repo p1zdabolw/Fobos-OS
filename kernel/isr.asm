@@ -1,6 +1,7 @@
 BITS 64
 
 extern isr_dispatch
+extern sched_switch_rsp
 
 section .note.GNU-stack noalloc noexec nowrite progbits
 
@@ -73,6 +74,12 @@ irq%1:
     PUSH_REGS
     mov rdi, rsp
     call isr_dispatch
+    mov rax, [sched_switch_rsp]
+    test rax, rax
+    jz %%no_switch
+    mov rsp, rax
+    mov qword [sched_switch_rsp], 0
+%%no_switch:
     POP_REGS
     add rsp, 16
     iretq

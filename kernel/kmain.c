@@ -11,6 +11,9 @@
 #include "pci.h"
 #include "fb.h"
 #include "fs.h"
+#include "ata.h"
+#include "diskfs.h"
+#include "rtc.h"
 #include "sched.h"
 #include "syscall.h"
 #include "net.h"
@@ -33,59 +36,19 @@
 #include "../apps/photos.h"
 #include "../apps/media.h"
 
-static const char SCRIPT_HELLO[] =
-    "@echo off\n"
-    "echo Hello from FOS batch!\n"
-    "echo This file is a script, not a binary.\n"
-    "pause\n"
-    "exit\n";
-
-static const char SCRIPT_SYSINFO[] =
-    "@echo off\n"
-    "echo === FOS System Information ===\n"
-    "uname\n"
-    "mem\n"
-    "uptime\n"
-    "df\n"
-    "echo === End of report ===\n"
-    "pause\n"
-    "exit\n";
-
-static const char SCRIPT_DEMO[] =
-    "@echo off\n"
-    "echo FOS Wine-style runtime\n"
-    "set WHO=World\n"
-    "echo Hello, %WHO%!\n"
-    "pause\n"
-    "exit\n";
-
-static const char SCRIPT_VARS[] =
-    "@echo off\n"
-    "echo Variable substitution demo\n"
-    "set NAME=FOS\n"
-    "set VERSION=0.3\n"
-    "echo Welcome to %NAME% v%VERSION%\n"
-    "pause\n"
-    "exit\n";
-
-static const char SCRIPT_NET[] =
-    "@echo off\n"
-    "echo === Network diagnostic ===\n"
-    "ifconfig\n"
-    "nslookup example.com\n"
-    "wget http://example.com/\n"
-    "pause\n"
-    "exit\n";
-
 static const char HOWTO[] =
-    "FOS batch scripting howto\n"
+    "FOS 0.4 batch scripting howto\n"
     "\n"
     "Scripts are .bat, .cmd or .exe files.\n"
     "Directives: echo, set, goto, pause, exit.\n"
     "Variables are written %NAME%.\n"
     "\n"
-    "FOS keyboard layouts:\n"
-    "  Press Shift + Alt to toggle EN / RU.\n";
+    "Keyboard layouts:\n"
+    "  Press Shift + Alt to toggle EN / RU.\n"
+    "\n"
+    "Storage:\n"
+    "  Files are persisted to the ATA disk.\n"
+    "  Settings survive reboot.\n";
 
 static const char URL_HOME[]   = "about:home";
 static const char URL_GOOGLE[] = "google.com";
@@ -112,84 +75,31 @@ static void splash(void) {
     fb_present();
 }
 
-void kmain(u64 mb2_info) {
-    serial_init();
-    serial_write("FOS kernel starting\n");
+static void idle_task(void) {
+    for (;;) __asm__ volatile("hlt");
+}
 
-    gdt_init();
-    idt_init();
-    pic_remap();
-
-    fb_init(mb2_info);
-
-    pmm_init(mb2_info);
-    vmm_init();
-    heap_init();
-
-    fb_back_init();
-
-    if (!fb_get()->back) {
-        kprintf("FATAL: no usable framebuffer\n");
-        for (;;) __asm__ volatile("hlt");
+static void rt_task(void) {
+    for (;;) {
+        sched_wait_period();
     }
+}
 
-    timer_init(100);
-    keyboard_init();
-    mouse_init();
-    fs_init();
-    sched_init();
-    syscall_init();
-    speaker_init();
+static void logger_task(void) {
+    for (;;) {
+        sched_wait_period();
+        struct tcb *me = sched_task(sched_current_id());
+        struct rtc_time tm;
+        rtc_read(&tm);
+        kprintf("logger: %04d-%02d-%02d %02d:%02d:%02d  jitter=%u/%u missed=%u\n",
+                tm.year, tm.month, tm.day, tm.hour, tm.minute, tm.second,
+                me->max_jitter_ms,
+                me->jitter_samples ? (u32)(me->total_jitter_ms / me->jitter_samples) : 0,
+                (u32)me->periods_missed);
+    }
+}
 
-    net_init();
-    cookie_jar_init();
-
-    pci_scan(pci_dump);
-
-    font_init();
-    compositor_init();
-    cursor_init();
-    window_init();
-    desktop_init();
-    wallpaper_init();
-    settings_init();
-    i18n_init();
-
-    splash();
-
-    fs_create("readme.txt",  "Welcome to FOS\n", 15);
-    fs_create("howto.txt",   HOWTO, sizeof(HOWTO) - 1);
-    fs_create("hello.bat",   SCRIPT_HELLO,   sizeof(SCRIPT_HELLO) - 1);
-    fs_create("sysinfo.cmd", SCRIPT_SYSINFO, sizeof(SCRIPT_SYSINFO) - 1);
-    fs_create("demo.exe",    SCRIPT_DEMO,    sizeof(SCRIPT_DEMO) - 1);
-    fs_create("vars.bat",    SCRIPT_VARS,    sizeof(SCRIPT_VARS) - 1);
-    fs_create("netdiag.bat", SCRIPT_NET,     sizeof(SCRIPT_NET) - 1);
-
-    fs_create("home.url",    URL_HOME,    sizeof(URL_HOME)    - 1);
-    fs_create("google.url",  URL_GOOGLE,  sizeof(URL_GOOGLE)  - 1);
-    fs_create("fos.url",     URL_FOS,     sizeof(URL_FOS)     - 1);
-    fs_create("example.url", URL_EXAMPLE, sizeof(URL_EXAMPLE) - 1);
-
-    desktop_add_icon("home.url");
-    desktop_add_icon("google.url");
-    desktop_add_icon("fos.url");
-    desktop_add_icon("example.url");
-    desktop_add_icon("readme.txt");
-    desktop_add_icon("howto.txt");
-    desktop_add_icon("hello.bat");
-    desktop_add_icon("sysinfo.cmd");
-    desktop_add_icon("demo.exe");
-    desktop_add_icon("vars.bat");
-    desktop_add_icon("netdiag.bat");
-
-    apps_launch_terminal();
-
-    kprintf("FOS ready. Free: %u KB, desktop icons: %u, layout: %s\n",
-            (u32)(pmm_free_bytes() / 1024), (u32)desktop_icon_count(),
-            keyboard_layout_name());
-
-    __asm__ volatile("sti");
-
+static void ui_task(void) {
     for (;;) {
         int mx = mouse_x();
         int my = mouse_y();
@@ -215,7 +125,99 @@ void kmain(u64 mb2_info) {
         }
 
         compositor_paint();
-
-        for (volatile int i = 0; i < 200000; i++) { }
+        sched_sleep(16);
     }
+}
+
+void kmain(u64 mb2_info) {
+    serial_init();
+    serial_write("FOS kernel starting\n");
+
+    gdt_init();
+    idt_init();
+    pic_remap();
+
+    fb_init(mb2_info);
+
+    pmm_init(mb2_info);
+    vmm_init();
+    heap_init();
+
+    fb_back_init();
+
+    if (!fb_get()->back) {
+        kprintf("FATAL: no usable framebuffer\n");
+        for (;;) __asm__ volatile("hlt");
+    }
+
+    timer_init(1000);
+    rtc_init();
+    keyboard_init();
+    mouse_init();
+    fs_init();
+    sched_init();
+    syscall_init();
+    speaker_init();
+
+    net_init();
+    cookie_jar_init();
+
+    pci_scan(pci_dump);
+
+    if (ata_init() == 0) {
+        if (dfs_mount() == 0) {
+            fs_enable_disk(1);
+            fs_load_from_disk();
+        }
+    } else {
+        kprintf("Storage: running in live mode (no ATA)\n");
+    }
+
+    font_init();
+    compositor_init();
+    cursor_init();
+    window_init();
+    desktop_init();
+    wallpaper_init();
+    settings_init();
+    i18n_init();
+
+    settings_load();
+
+    splash();
+
+    if (!fs_exists("readme.txt")) {
+        fs_create("readme.txt", "Welcome to FOS\n", 15);
+    }
+    if (!fs_exists("howto.txt")) {
+        fs_create("howto.txt", HOWTO, sizeof(HOWTO) - 1);
+    }
+
+    fs_create("home.url",    URL_HOME,    sizeof(URL_HOME)    - 1);
+    fs_create("google.url",  URL_GOOGLE,  sizeof(URL_GOOGLE)  - 1);
+    fs_create("fos.url",     URL_FOS,     sizeof(URL_FOS)     - 1);
+    fs_create("example.url", URL_EXAMPLE, sizeof(URL_EXAMPLE) - 1);
+
+    desktop_add_icon("home.url");
+    desktop_add_icon("google.url");
+    desktop_add_icon("fos.url");
+    desktop_add_icon("example.url");
+    desktop_add_icon("readme.txt");
+    desktop_add_icon("howto.txt");
+
+    apps_launch_terminal();
+
+    sched_create_periodic("rt",     rt_task,     0,  100);
+    sched_create_periodic("logger", logger_task, 20, 1000);
+    sched_create("ui", ui_task, 10);
+    sched_create("idle", idle_task, SCHED_IDLE_PRIORITY);
+
+    kprintf("FOS ready. Free: %u KB, storage: %s\n",
+            (u32)(pmm_free_bytes() / 1024),
+            dfs_available() ? "ATA/DFS" : "live (RAM only)");
+
+    __asm__ volatile("sti");
+    sched_start();
+
+    for (;;) __asm__ volatile("hlt");
 }

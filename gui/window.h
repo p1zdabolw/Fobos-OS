@@ -7,6 +7,7 @@
 
 struct window {
     int x, y, w, h;
+    int wanted_w, wanted_h;
     char title[32];
     int visible;
     int focused;
