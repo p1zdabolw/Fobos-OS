@@ -1,3 +1,4 @@
+#This is a very old project that the creator himself considers a huge mistake, which is why a new OS is currently in development.
 # FOS — Fobos Operating System
 
 A from-scratch x86_64 graphical operating system written in C11 and NASM.
