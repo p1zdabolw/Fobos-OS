@@ -1,0 +1,154 @@
+# Fobos OS 0.7.0-fnd3b — верификация от 2026-11-05 (полный make verify, чанки e2e из-за лимита 600 с/вызов песочницы)
+
+=== 1. make verify: host-tests + сборка + ESP (make host-tests all esp) ===
+mkdir -p build
+cc -std=c11 -Wall -Wextra -Werror -O2 -g -fno-tree-loop-distribute-patterns \
+           -Iinclude -Icommon -I. -DFOBOS_HOST_TEST -o build/host_tests tests/host/runner.c tests/host/mock_log.c tests/host/blk_mock.c kernel/selftest/selftest.c kernel/lib/vsnprintf.c kernel/lib/string.c kernel/lib/errors.c kernel/mm/phys.c kernel/drivers/kbd.c kernel/drivers/mouse.c kernel/drivers/rtc.c kernel/sys/users.c kernel/sys/session.c kernel/fs/fatp.c kernel/fs/fat32.c kernel/fs/ovl.c kernel/sys/elf.c common/fbpi.c common/sha256.c common/foboscfg.c common/cfglite.c common/mbr.c common/fmtcalc.c common/fmtfat32.c
+build/host_tests
+host-test: mmap(0x100000) = 0x100000 (errno=0)
+[0000000000000] INFO  [mm/phys] карта EFI: 3 дескрипторов; RAM: 2 МиБ; свободно <4ГиБ: 1 МиБ; >=4ГиБ: 0 МиБ
+[0000000000000] INFO  [mm/phys] bitmap: 0x101000 (0 КиБ, 1025 кадров), кадры: всего 1025, свободно 478, резерв 547
+[0000000000000] INFO  [kselftest] начало набора самопроверок FND-1/FND-2a
+[0000000000000] INFO  [kselftest] PASS vsnprintf/%d-positive
+[0000000000000] INFO  [kselftest] PASS vsnprintf/%d-negative
+[0000000000000] INFO  [kselftest] PASS vsnprintf/%i-zero
+[0000000000000] INFO  [kselftest] PASS vsnprintf/%lld-min
+[0000000000000] INFO  [kselftest] PASS vsnprintf/%d-max32
+[0000000000000] INFO  [kselftest] PASS vsnprintf/%hhd-trunc
+[0000000000000] INFO  [kselftest] PASS vsnprintf/%u
+[0000000000000] INFO  [kselftest] PASS vsnprintf/%x
+[0000000000000] INFO  [kselftest] PASS vsnprintf/%X
+[0000000000000] INFO  [kselftest] PASS vsnprintf/%o
+[0000000000000] INFO  [kselftest] PASS vsnprintf/%llx-max
+[0000000000000] INFO  [kselftest] PASS vsnprintf/width-space
+[0000000000000] INFO  [kselftest] PASS vsnprintf/width-zero
+[0000000000000] INFO  [kselftest] PASS vsnprintf/width-left
+[0000000000000] INFO  [kselftest] PASS vsnprintf/width-str
+[0000000000000] INFO  [kselftest] PASS vsnprintf/%s-null
+[0000000000000] INFO  [kselftest] PASS vsnprintf/%c
+[0000000000000] INFO  [kselftest] PASS vsnprintf/%%
+[0000000000000] INFO  [kselftest] PASS vsnprintf/%p-null
+[0000000000000] INFO  [kselftest] PASS vsnprintf/unknown-spec
+[0000000000000] INFO  [kselftest] PASS vsnprintf/mixed
+[0000000000000] INFO  [kselftest] PASS vsnprintf/truncate
+[0000000000000] INFO  [kselftest] PASS fbpi/checksum
+[0000000000000] INFO  [kselftest] PASS fbpi/bltonly-rejected
+[0000000000000] INFO  [kselftest] PASS phys/alloc-reuse
+[0000000000000] ERROR [mm/phys] double free: кадр 0x102000
+[0000000000000] INFO  [kselftest] PASS phys/double-free
+[0000000000000] INFO  [kselftest] PASS phys/stats-sane
+[0000000000000] INFO  [kselftest] PASS phys/contig
+[0000000000000] INFO  [kselftest] PASS kbd/translate
+[0000000000000] INFO  [kselftest] PASS mouse/parse
+[0000000000000] INFO  [kselftest] PASS sha256/kat
+[0000000000000] INFO  [kselftest] PASS foboscfg/users
+[0000000000000] INFO  [kselftest] PASS cfglite/count
+[0000000000000] INFO  [kselftest] PASS cfglite/mode
+[0000000000000] INFO  [kselftest] PASS cfglite/trim
+[0000000000000] INFO  [kselftest] PASS cfglite/inner-space
+[0000000000000] INFO  [kselftest] PASS cfglite/last-line
+[0000000000000] INFO  [kselftest] PASS cfglite/missing
+[0000000000000] INFO  [kselftest] PASS cfglite/overflow-skip
+[0000000000000] INFO  [kselftest] PASS cfglite/null-safe
+[0000000000000] INFO  [kselftest] PASS rtc/pure
+[0000000000000] INFO  [kselftest] PASS session/basic
+[0000000000000] INFO  [kselftest] PASS fat83/from-text-upper
+[0000000000000] INFO  [kselftest] PASS fat83/from-text-lower
+[0000000000000] INFO  [kselftest] PASS fat83/no-ext
+[0000000000000] INFO  [kselftest] PASS fat83/too-long
+[0000000000000] INFO  [kselftest] PASS fat83/bad-char
+[0000000000000] INFO  [kselftest] PASS fat83/match
+[0000000000000] INFO  [kselftest] PASS fat83/render
+[0000000000000] INFO  [kselftest] PASS bpb/valid
+[0000000000000] INFO  [kselftest] PASS bpb/bad-signature
+[0000000000000] INFO  [kselftest] PASS bpb/bad-sector-size
+[0000000000000] INFO  [kselftest] PASS lfn/first-part
+[0000000000000] INFO  [kselftest] PASS lfn/not-lfn
+[0000000000000] INFO  [kselftest] PASS lfn/checksum
+[0000000000000] INFO  [kselftest] PASS lfn-alias/basic
+[0000000000000] INFO  [kselftest] PASS lfn-alias/tail3
+[0000000000000] INFO  [kselftest] PASS lfn-alias/no-base
+[0000000000000] INFO  [kselftest] PASS lfn-alias/no-ext
+[0000000000000] INFO  [kselftest] PASS lfn-alias/bad-tail
+[0000000000000] INFO  [kselftest] PASS lfn-build/count
+[0000000000000] INFO  [kselftest] PASS lfn-build/headers
+[0000000000000] INFO  [kselftest] PASS lfn-build/order-flags
+[0000000000000] INFO  [kselftest] PASS lfn-build/ord1-first13
+[0000000000000] INFO  [kselftest] PASS lfn-build/ord2-tail
+[0000000000000] INFO  [kselftest] PASS lfn-build/bad-args
+[0000000000000] INFO  [kselftest] PASS ovl/init
+[0000000000000] INFO  [kselftest] PASS ovl/passthrough
+[0000000000000] INFO  [ovl] амнезия включена: запись в RAM, диск не изменяется (лимит 0 МиБ)
+[0000000000000] INFO  [kselftest] PASS ovl/ram-only
+[0000000000000] INFO  [kselftest] PASS ovl/block-sharing
+[0000000000000] INFO  [kselftest] PASS ovl/rmw-neighbor
+[0000000000000] INFO  [ovl] амнезия выключена: оверлей сброшен (изменения забыты)
+[0000000000000] INFO  [ovl] амнезия включена: запись в RAM, диск не изменяется (лимит 0 МиБ)
+[0000000000000] ERROR [ovl] переполнение оверлея (1 блоков) — запись отклонена
+[0000000000000] INFO  [kselftest] PASS ovl/limit
+[0000000000000] INFO  [ovl] амнезия выключена: оверлей сброшен (изменения забыты)
+[0000000000000] INFO  [kselftest] PASS ovl/disable-frees
+[0000000000000] INFO  [kselftest] PASS elf/valid-exec
+[0000000000000] INFO  [kselftest] PASS elf/validate-ok
+[0000000000000] INFO  [kselftest] PASS elf/bad-magic
+[0000000000000] INFO  [kselftest] PASS elf/bad-class
+[0000000000000] INFO  [kselftest] PASS elf/et-dyn
+[0000000000000] INFO  [kselftest] PASS elf/phoff-range
+[0000000000000] INFO  [kselftest] PASS elf/entry-kaddr
+[0000000000000] INFO  [kselftest] PASS elf/seg-kaddr
+[0000000000000] INFO  [kselftest] PASS elf/filesz-gt-memsz
+[0000000000000] INFO  [kselftest] PASS elf/seg-eof
+[0000000000000] INFO  [kselftest] PASS mbr/roundtrip
+[0000000000000] INFO  [kselftest] PASS mbr/find-fat32
+[0000000000000] INFO  [kselftest] PASS mbr/no-signature
+[0000000000000] INFO  [kselftest] PASS fmtcalc/geom-256mib
+[0000000000000] INFO  [kselftest] PASS fmtcalc/geom-64mib
+[0000000000000] INFO  [kselftest] PASS fmtcalc/geom-too-small
+[0000000000000] INFO  [kselftest] PASS fmtfat32/format
+[0000000000000] INFO  [fat32] mount: кластер=1 сект, FAT=2 x 540 сект, кластеров 68887, метка "FOBOSTEST  "
+[0000000000000] INFO  [kselftest] PASS fmtfat32/mount
+[0000000000000] INFO  [kselftest] PASS fat32/mkdir-nested
+[0000000000000] INFO  [kselftest] PASS fat32/mkdir-negatives
+[0000000000000] INFO  [kselftest] PASS fat32/write-read-in-dir
+[0000000000000] INFO  [kselftest] PASS fat32/mkdir-dot-entries
+[0000000000000] INFO  [kselftest] PASS phys/exhaustion
+[0000000000000] INFO  [kselftest] kselftest: summary: 96 passed, 0 failed
+host-tests: PASS (0 failed)
+
+=== 2. e2e чанк A: oobe,persist,esc,shift ===
+qemu_selftest: === сценарий oobe ===
+qemu_selftest: mouse dx=100 dy=60
+qemu_selftest: logout -> login OK
+qemu_selftest: === сценарий persist ===
+qemu_selftest: persisted login OK (wrong->right password)
+qemu_selftest: === сценарий esc ===
+qemu_selftest: ESC-reset -> new OOBE -> login OK
+qemu_selftest: === сценарий shift ===
+qemu_selftest: PASS (229.6 с, все сценарии)
+EXIT=0
+
+=== 3. e2e чанк B: desktop,userspace,install ===
+qemu_selftest: === сценарий desktop ===
+qemu_selftest: locked gui mode restored across reboot OK
+qemu_selftest: === сценарий userspace ===
+qemu_selftest: === сценарий install ===
+qemu_selftest: installer completed; target written
+HOST CHECK PASS: mbr signature
+HOST CHECK PASS: mbr two partitions
+HOST CHECK PASS: partition 1 is EFI (0xEF)
+HOST CHECK PASS: partition 2 is FAT32 (0x0C)
+HOST CHECK PASS: partition 1 starts at LBA 2048 (1 MiB)
+HOST CHECK PASS: partition 2 after partition 1
+HOST CHECK PASS: esp root has EFI and FOBOS
+HOST CHECK PASS: esp BOOTX64.EFI matches build artifact
+HOST CHECK PASS: esp KERNEL.ELF matches build artifact
+HOST CHECK PASS: esp FOBOS.CFG present (mode=tui)
+HOST CHECK PASS: esp SETUP.CFG present (FBS2 blob)
+HOST CHECK PASS: data root has FOBOS dir
+HOST CHECK PASS: data HELLO.ELF is ELF64
+HOST CHECK PASS: data NOTES.TXT non-empty
+HOST CHECK PASS: data FOBOS.CFG == esp FOBOS.CFG
+HOST CHECK: 15/15 проверок пройдено
+qemu_selftest: boot from installed disk OK
+qemu_selftest: PASS (327.6 с, все сценарии)
+EXIT=0
